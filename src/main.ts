@@ -1,6 +1,9 @@
 import { NestFactory } from '@nestjs/core';
+import { ValidationPipe } from '@nestjs/common';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { AppModule } from './app.module';
+import { StructuredLogger } from './common/logger/structured.logger';
+import { swaggerCustomCss, swaggerCustomJs } from './config/swagger-custom-ui';
 import { execSync, exec } from 'child_process';
 import * as fs from 'fs';
 import * as os from 'os';
@@ -18,9 +21,14 @@ function isBrowserRunning(): boolean {
         stdio: ['ignore', 'pipe', 'ignore'],
         windowsHide: true,
       });
-      return /chrome\.exe|msedge\.exe|firefox\.exe|brave\.exe|opera\.exe/i.test(out);
+      return /chrome\.exe|msedge\.exe|firefox\.exe|brave\.exe|opera\.exe/i.test(
+        out,
+      );
     }
-    const out = execSync('ps aux', { encoding: 'utf-8', stdio: ['ignore', 'pipe', 'ignore'] });
+    const out = execSync('ps aux', {
+      encoding: 'utf-8',
+      stdio: ['ignore', 'pipe', 'ignore'],
+    });
     return /Google Chrome|Safari|firefox|Brave Browser|Chromium/i.test(out);
   } catch {
     return false;
@@ -53,7 +61,11 @@ function openSwaggerIfBrowserOpen(url: string): void {
 
   if (!isBrowserRunning()) return;
 
-  fs.writeFileSync(LOCK_FILE, JSON.stringify({ timestamp: Date.now() }), 'utf-8');
+  fs.writeFileSync(
+    LOCK_FILE,
+    JSON.stringify({ timestamp: Date.now() }),
+    'utf-8',
+  );
   openBrowser(url);
 }
 
@@ -76,20 +88,41 @@ process.on('SIGINT', () => {
 });
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
+  const app = await NestFactory.create(AppModule, {
+    logger: new StructuredLogger(),
+  });
+
+  // CORS: el frontend (ECIExpress) llama a este servicio directamente en desarrollo
+  // (sin API Gateway) enviando el header x-user-id. En producción restringir el origen.
+  app.enableCors({
+    origin: true,
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'x-user-id'],
+    credentials: true,
+  });
+
+  app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
 
   const config = new DocumentBuilder()
     .setTitle('Notifications Service')
-    .setDescription('Notifications Service API documentation')
+    .setDescription(
+      'Servicio de notificaciones de ECIExpress. Consume eventos de todos los ' +
+        'microservicios y envía notificaciones por email, WhatsApp, SMS, push y en ' +
+        'tiempo real (in-app vía WebSocket).',
+    )
     .setVersion('1.0')
     .build();
 
   const document = SwaggerModule.createDocument(app, config);
-  SwaggerModule.setup('api', app, document);
+  SwaggerModule.setup('api', app, document, {
+    customCss: swaggerCustomCss,
+    customJsStr: swaggerCustomJs,
+    swaggerOptions: { persistAuthorization: true },
+  });
 
-  const port = process.env.PORT ?? 3000;
+  const port = process.env.PORT ?? 3006;
   await app.listen(port);
 
   openSwaggerIfBrowserOpen(`http://localhost:${port}/api`);
 }
-bootstrap();
+void bootstrap();

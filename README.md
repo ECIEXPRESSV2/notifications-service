@@ -1,98 +1,142 @@
-<p align="center">
-  <a href="http://nestjs.com/" target="blank"><img src="https://nestjs.com/img/logo-small.svg" width="120" alt="Nest Logo" /></a>
-</p>
+# notifications-service — ECIExpress
 
-[circleci-image]: https://img.shields.io/circleci/build/github/nestjs/nest/master?token=abc123def456
-[circleci-url]: https://circleci.com/gh/nestjs/nest
+Microservicio de **notificaciones** de ECIExpress (marketplace universitario de la
+Escuela Colombiana de Ingeniería). Es un **consumidor final** del bus de eventos: recibe
+eventos de todos los microservicios y envía notificaciones por **email, WhatsApp, SMS,
+push y en tiempo real (in-app)**. No publica eventos de negocio.
 
-  <p align="center">A progressive <a href="http://nodejs.org" target="_blank">Node.js</a> framework for building efficient and scalable server-side applications.</p>
-    <p align="center">
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/v/@nestjs/core.svg" alt="NPM Version" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/l/@nestjs/core.svg" alt="Package License" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/dm/@nestjs/common.svg" alt="NPM Downloads" /></a>
-<a href="https://circleci.com/gh/nestjs/nest" target="_blank"><img src="https://img.shields.io/circleci/build/github/nestjs/nest/master" alt="CircleCI" /></a>
-<a href="https://discord.gg/G7Qnnhy" target="_blank"><img src="https://img.shields.io/badge/discord-online-brightgreen.svg" alt="Discord"/></a>
-<a href="https://opencollective.com/nest#backer" target="_blank"><img src="https://opencollective.com/nest/backers/badge.svg" alt="Backers on Open Collective" /></a>
-<a href="https://opencollective.com/nest#sponsor" target="_blank"><img src="https://opencollective.com/nest/sponsors/badge.svg" alt="Sponsors on Open Collective" /></a>
-  <a href="https://paypal.me/kamilmysliwiec" target="_blank"><img src="https://img.shields.io/badge/Donate-PayPal-ff3f59.svg" alt="Donate us"/></a>
-    <a href="https://opencollective.com/nest#sponsor"  target="_blank"><img src="https://img.shields.io/badge/Support%20us-Open%20Collective-41B883.svg" alt="Support us"></a>
-  <a href="https://twitter.com/nestframework" target="_blank"><img src="https://img.shields.io/twitter/follow/nestframework.svg?style=social&label=Follow" alt="Follow us on Twitter"></a>
-</p>
-  <!--[![Backers on Open Collective](https://opencollective.com/nest/backers/badge.svg)](https://opencollective.com/nest#backer)
-  [![Sponsors on Open Collective](https://opencollective.com/nest/sponsors/badge.svg)](https://opencollective.com/nest#sponsor)-->
+Construido con la misma arquitectura que `financial-service`: NestJS + TypeScript,
+PostgreSQL (NeonDB) con TypeORM sin `synchronize` (solo migraciones), bus RabbitMQ
+(CloudAMQP) vía `@golevelup/nestjs-rabbitmq`, Swagger y logging estructurado JSON.
 
-## Description
+- Puerto: **3006**
+- Exchange compartido: `eciexpress_events` (topic, durable)
+- Cola propia: `notifications_service_queue` (durable)
+- Bindings: `identity.#`, `order.#`, `fulfillment.#`, `financial.#`, `product.#`, `notification.#`
 
-[Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
+> 📖 **¿Vas a integrar otro microservicio?** Lee
+> [`docs/INTEGRACION-EVENTOS.md`](docs/INTEGRACION-EVENTOS.md): cómo deben venir los
+> eventos, todos los que recibe, y qué poner en el código para enviar por mail, WhatsApp,
+> SMS, push y tiempo real.
 
-## Project setup
+## Cómo se notifica
 
-```bash
-$ pnpm install
+Hay **dos formas** de disparar una notificación, y ambas terminan en el mismo orquestador:
+
+1. **Por evento de negocio (automático).** El consumidor mapea cada routing key a una
+   notificación usando el **catálogo** (`src/events/notification-catalog.ts`): define
+   destinatario, textos en español y canales. Agregar una notificación nueva es añadir
+   una entrada al catálogo; no se toca el resto del código.
+
+2. **Comando genérico (cualquier microservicio).** Para enviar algo arbitrario por
+   cualquier canal sin un evento de negocio dedicado:
+   - Evento: `notification.send.requested` con
+     `{ recipientUserId?, email?, phone?, deviceTokens?, channels[], title, body, data?, dedupKey? }`
+   - REST equivalente: `POST /notifications/send`
+
+   Así **todos los canales se pueden usar desde todos los microservicios**.
+
+### Eventos cubiertos hoy
+
+| Routing key | Notificación | Canales |
+|---|---|---|
+| `identity.user.registered` | Bienvenida | email, in-app |
+| `identity.store.created` | Bienvenida al vendedor | email, in-app |
+| `order.order.created` | Pedido creado | email, in-app, push |
+| `order.order.confirmed` | Pedido pagado/confirmado | email, WhatsApp, in-app, push |
+| `order.order.cancelled` | Pedido cancelado | email, in-app, push |
+| `order.order.status_changed` | Cambio de estado | in-app, push |
+| `order.chat.message.sent` | Nuevo mensaje | push, in-app |
+| `fulfillment.qr.generated` | Código QR de entrega | email, WhatsApp |
+| `fulfillment.delivery.confirmed` | Entrega confirmada | email, in-app, push |
+| `fulfillment.qr.expired` | QR vencido | email, in-app, push |
+| `fulfillment.delivery.failed` | Entrega fallida | email, in-app, push |
+| `financial.wallet.topup.approved` | Recarga confirmada | email, WhatsApp, SMS, push, in-app |
+| `financial.payment.processed` | Pago exitoso | in-app, push |
+| `financial.payment.failed` | Pago fallido | email, in-app, push |
+| `financial.payment.released` | Desembolso liberado (al vendedor) | email, in-app |
+| `financial.refund.issued` | Reembolso | email, in-app, push |
+| `product.inventory.low_stock` | Stock bajo (al vendedor) | email, in-app, push |
+
+> **Nota de contrato:** `financial.wallet.topup.approved` ya **incluye el `userId`** del
+> dueño de la billetera, así que la recarga notifica de extremo a extremo. Los demás
+> eventos de Financial (payment.processed, payment.failed, refund.issued) todavía **no
+> traen el `userId` del comprador**, solo `walletId`/`storeId`; mientras Financial no lo
+> agregue, esas notificaciones se **omiten con log** (no se inventan destinatarios). Ver
+> TODOs en `src/events/payloads/financial.payloads.ts`.
+
+## Canales
+
+Cada canal implementa una interfaz común (`src/channels/channel.interface.ts`) y tiene
+**modo sandbox**: si faltan sus credenciales, en vez de fallar **loguea** el mensaje y lo
+marca como enviado, para poder probar el flujo completo en desarrollo (igual que el
+PayoutService de financial-service).
+
+| Canal | Proveedor | Variables |
+|---|---|---|
+| EMAIL | Resend | `RESEND_API_KEY`, `MAIL_FROM` |
+| WHATSAPP | Meta WhatsApp Cloud API (u OpenWA) | `WHATSAPP_API_URL`, `WHATSAPP_PHONE_NUMBER_ID`, `WHATSAPP_TOKEN` |
+| SMS | Twilio | `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_FROM` |
+| PUSH | Firebase Cloud Messaging | `FCM_SERVER_KEY` |
+| REALTIME | Socket.IO (WebSocket) | — (siempre disponible) |
+
+**Tiempo real (in-app):** el cliente se conecta por WebSocket pasando su id en el
+handshake (`?userId=...` o header `x-user-id`); entra a la sala `user:<id>` y recibe el
+evento `notification`. La notificación también queda persistida en la bandeja in-app, así
+que aunque el usuario esté offline la verá al consultar `GET /notifications`.
+
+## Endpoints REST
+
+Bandeja in-app y configuración del usuario (header `x-user-id`):
+
+```
+GET    /notifications                → mis notificaciones (paginadas; ?unreadOnly=true)
+GET    /notifications/unread-count    → cantidad sin leer
+PATCH  /notifications/:id/read        → marcar una como leída
+POST   /notifications/read-all        → marcar todas como leídas
+
+POST   /devices                       → registrar token FCM { token, platform }
+GET    /devices                       → mis dispositivos
+DELETE /devices/:token                → eliminar token
+
+GET    /preferences                   → mis preferencias de canal
+PATCH  /preferences                   → activar/desactivar canales
 ```
 
-## Compile and run the project
+Uso interno (otros microservicios vía gateway) y pruebas:
 
-```bash
-# development
-$ pnpm run start
-
-# watch mode
-$ pnpm run start:dev
-
-# production mode
-$ pnpm run start:prod
+```
+POST   /notifications/send            → enviar notificación directa por cualquier canal
 ```
 
-## Run tests
+`GET /health` para el healthcheck. Swagger en `/api`.
+
+## Modelo de datos (6 tablas)
+
+- `recipients` — proyección de contacto de usuarios (desde Identity)
+- `notification_stores` — proyección de tiendas para resolver al dueño
+- `device_tokens` — tokens FCM para push
+- `notification_preferences` — preferencias de canal por usuario
+- `notifications` — notificación lógica + bandeja in-app (`dedup_key` para idempotencia)
+- `notification_deliveries` — resultado de cada intento de entrega por canal
+
+## Puesta en marcha
 
 ```bash
-# unit tests
-$ pnpm run test
-
-# e2e tests
-$ pnpm run test:e2e
-
-# test coverage
-$ pnpm run test:cov
+pnpm install
+cp .env.example .env      # completar DATABASE_URL y RABBITMQ_URL (mínimo)
+pnpm run migration:run    # crear las tablas en NeonDB
+pnpm run start:dev        # levanta en el puerto 3006 + Swagger en /api
 ```
 
-## Deployment
+Sin credenciales de los proveedores, los canales funcionan en **sandbox** (loguean en
+consola). Para envíos reales, completar las variables de cada canal en `.env`.
 
-When you're ready to deploy your NestJS application to production, there are some key steps you can take to ensure it runs as efficiently as possible. Check out the [deployment documentation](https://docs.nestjs.com/deployment) for more information.
+## Reglas técnicas heredadas
 
-If you are looking for a cloud-based platform to deploy your NestJS application, check out [Mau](https://mau.nestjs.com), our official platform for deploying NestJS applications on AWS. Mau makes deployment straightforward and fast, requiring just a few simple steps:
-
-```bash
-$ pnpm install -g @nestjs/mau
-$ mau deploy
-```
-
-With Mau, you can deploy your application in just a few clicks, allowing you to focus on building features rather than managing infrastructure.
-
-## Resources
-
-Check out a few resources that may come in handy when working with NestJS:
-
-- Visit the [NestJS Documentation](https://docs.nestjs.com) to learn more about the framework.
-- For questions and support, please visit our [Discord channel](https://discord.gg/G7Qnnhy).
-- To dive deeper and get more hands-on experience, check out our official video [courses](https://courses.nestjs.com/).
-- Deploy your application to AWS with the help of [NestJS Mau](https://mau.nestjs.com) in just a few clicks.
-- Visualize your application graph and interact with the NestJS application in real-time using [NestJS Devtools](https://devtools.nestjs.com).
-- Need help with your project (part-time to full-time)? Check out our official [enterprise support](https://enterprise.nestjs.com).
-- To stay in the loop and get updates, follow us on [X](https://x.com/nestframework) and [LinkedIn](https://linkedin.com/company/nestjs).
-- Looking for a job, or have a job to offer? Check out our official [Jobs board](https://jobs.nestjs.com).
-
-## Support
-
-Nest is an MIT-licensed open source project. It can grow thanks to the sponsors and support by the amazing backers. If you'd like to join them, please [read more here](https://docs.nestjs.com/support).
-
-## Stay in touch
-
-- Author - [Kamil Myśliwiec](https://twitter.com/kammysliwiec)
-- Website - [https://nestjs.com](https://nestjs.com/)
-- Twitter - [@nestframework](https://twitter.com/nestframework)
-
-## License
-
-Nest is [MIT licensed](https://github.com/nestjs/nest/blob/master/LICENSE).
+- `synchronize` siempre en `false`; tablas solo por migraciones CLI.
+- Este servicio **no llama a otros microservicios por HTTP**: toda la info externa llega
+  por el bus. La proyección de contacto se construye desde eventos de Identity.
+- Handlers idempotentes: `dedup_key` único + upserts; los eventos pueden llegar duplicados.
+- Credenciales solo por variables de entorno, nunca en el código.
+- Nombres de código en inglés, comentarios en español.
