@@ -5,6 +5,12 @@ Esta guía es para los equipos de **los demás microservicios** de ECIExpress. E
 1. [Cómo deben venir los eventos](#1-contrato-del-evento-sobre) (el "sobre").
 2. [Todos los eventos que recibe](#3-catálogo-de-eventos-que-consume) y qué campos necesita cada uno.
 3. [Cómo hacer que se envíen notificaciones](#4-cómo-disparar-una-notificación-desde-tu-servicio) por mail, WhatsApp, SMS, push y tiempo real.
+4. [Cómo personalizar el HTML del correo](#511-plantillas-html-de-correo-una-carpeta-por-microservicio) con una plantilla por evento.
+
+> **Estado de los canales (jun 2026):** Mail y SMS ya envían a destinatarios reales.
+> WhatsApp y tiempo real están en implementación; mientras tanto funcionan en modo
+> sandbox (registran el envío sin entregarlo). La forma de integrar **no cambia** cuando
+> queden listos: tu evento ya puede listar esos canales hoy.
 
 > Resumen en una frase: publica un JSON **plano** en el exchange `eciexpress_events` con
 > la routing key correcta y los campos que pide cada evento; el servicio de
@@ -260,6 +266,85 @@ la entrega queda **SKIPPED** (no falla el evento). Resumen:
 Llega solo: con que Identity mande `email` en el registro, los correos de bienvenida,
 órdenes, pagos, etc. salen automáticamente. Para envíos reales (no sandbox) configurar
 `RESEND_API_KEY` en el `.env` del servicio.
+
+El correo se envía como **texto plano** por defecto. Si quieres un diseño bonito (HTML),
+define una plantilla — ver la sección siguiente.
+
+### 5.1.1 Plantillas HTML de correo (una carpeta por microservicio)
+
+Cada servicio puede aportar sus propias plantillas de correo. El servicio de
+notificaciones resuelve la plantilla **a partir de la routing key del evento**:
+
+```
+routing key:   financial . wallet.topup.approved
+               └────────┘   └──────────────────┘
+                 servicio       nombre del archivo
+
+plantilla:     src/templates/financial/wallet.topup.approved.html
+```
+
+Es decir: **el primer segmento de la routing key es la carpeta**, y el resto (tal cual,
+con sus puntos) es el nombre del archivo `.html`. Así cada equipo mantiene sus plantillas
+agrupadas:
+
+```
+src/templates/
+├── financial/
+│   ├── wallet.topup.approved.html
+│   ├── payment.failed.html
+│   └── refund.issued.html
+├── order/
+│   └── order.confirmed.html
+└── identity/
+    └── user.registered.html
+```
+
+- Si **existe** el archivo para ese evento → el correo se manda en HTML con esa plantilla.
+- Si **no existe** → cae automáticamente a texto plano. No falla nada.
+- Las plantillas viven en `src/templates/` y se copian a `dist/` en el build
+  (configurado en `nest-cli.json`); no hay que hacer nada extra al desplegar.
+
+#### Variables disponibles en la plantilla
+
+Se reemplazan los marcadores `{{variable}}` con estos valores:
+
+| Variable | Contenido |
+|---|---|
+| `{{title}}` | El título de la notificación. |
+| `{{body}}` | El texto del cuerpo (el mismo del texto plano). |
+| `{{recipientName}}` | Nombre del destinatario, **con un espacio inicial** (pensado para `Hola{{recipientName}},` → `Hola Juan,`). Vacío si no se conoce. |
+| `{{year}}` | Año actual (útil para el pie de página). |
+| `{{amountFormatted}}` | Si el evento trae `amount` (centavos), su versión formateada en COP (ej. `$50.000`). |
+| `{{cualquierCampoDeData}}` | **Todos** los campos del `data` de la notificación. Ej.: el catálogo de `topup.approved` pone `data: { topupId, amount }`, así que tienes `{{topupId}}` y `{{amount}}`. |
+
+> ¿Qué campos hay en `data`? Los que el catálogo (sección 3) define en la columna `data`
+> de cada evento. Si usas el [comando genérico](#42-opción-b--comando-genérico-cualquier-cosa-por-cualquier-canal),
+> son las claves que mandes en tu objeto `data`.
+
+#### Ejemplo mínimo de plantilla
+
+`src/templates/order/order.confirmed.html`:
+
+```html
+<!DOCTYPE html>
+<html lang="es">
+  <body style="font-family: Arial, sans-serif;">
+    <h2>{{title}}</h2>
+    <p>Hola{{recipientName}},</p>
+    <p>{{body}}</p>
+    <p>Tu pedido <strong>{{orderId}}</strong> ya está en preparación.</p>
+    <hr />
+    <small>&copy; {{year}} ECIExpress</small>
+  </body>
+</html>
+```
+
+#### Cómo aportar tu plantilla
+
+Como las plantillas viven dentro de este repositorio, mándalas por PR a
+`notifications-service` (carpeta `src/templates/<tu-servicio>/`). Asegúrate de que el
+nombre del archivo coincida **exactamente** con la routing key (sin el primer segmento)
+más `.html`.
 
 ### 5.2 Habilitar WhatsApp / SMS
 Estos canales necesitan **teléfono**. Hoy Identity **no** envía teléfono en el registro,
