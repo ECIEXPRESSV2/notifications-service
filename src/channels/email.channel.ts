@@ -52,7 +52,7 @@ export class EmailChannel implements NotificationChannel {
 
     if (!apiKey) {
       this.logger.log(
-        `[SANDBOX EMAIL] a=${message.destination} asunto="${message.title}" template=${message.type ?? 'none'}`,
+        `[SANDBOX EMAIL] a=${message.destination} asunto="${message.title}" template=${message.sourceEvent ?? 'none'}`,
       );
       return { status: DeliveryStatus.SENT, provider: 'sandbox' };
     }
