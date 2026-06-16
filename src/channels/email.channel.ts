@@ -93,6 +93,9 @@ export class EmailChannel implements NotificationChannel {
       // Espacio previo incluido para que "Hola{{recipientName}}," quede natural
       recipientName: message.recipientName ? ` ${message.recipientName}` : '',
       year: new Date().getFullYear(),
+      // URL base del front (editable por env FRONTEND_URL); las plantillas arman
+      // enlaces como href="{{frontendUrl}}/profile".
+      frontendUrl: this.config.get<string>('app.frontendUrl') ?? '',
       ...data,
       // Versión formateada del amount si el campo existe (centavos → pesos COP)
       ...(typeof data.amount === 'number'

@@ -16,6 +16,15 @@ export interface WalletTopupApprovedPayload {
   amount: number; // centavos COP
 }
 
+/** routing key: `financial.wallet.topup.failed` */
+export interface WalletTopupFailedPayload {
+  topupId?: string;
+  userId?: string; // dueño de la billetera; sin él la notificación se omite
+  amount: number; // centavos COP
+  paymentMethod?: string; // ej. DAVIPLATA, CARD
+  reason?: string; // estado/razón del rechazo (ej. DECLINED)
+}
+
 /** routing key: `financial.payment.processed` */
 export interface PaymentProcessedPayload {
   orderId: string;

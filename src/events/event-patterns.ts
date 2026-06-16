@@ -30,6 +30,7 @@ export const ConsumedEvents = {
 
   // Financial
   WALLET_TOPUP_APPROVED: 'financial.wallet.topup.approved',
+  WALLET_TOPUP_FAILED: 'financial.wallet.topup.failed',
   PAYMENT_PROCESSED: 'financial.payment.processed',
   PAYMENT_FAILED: 'financial.payment.failed',
   PAYMENT_RELEASED: 'financial.payment.released',
