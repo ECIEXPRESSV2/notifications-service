@@ -23,11 +23,27 @@ export class StructuredLogger implements LoggerService {
       service: 'notifications-service',
       ...(context && { context }),
       ...(store?.userId && { userId: store.userId }),
-      message: typeof message === 'object' ? message : String(message),
+      message: this.serialize(message),
       ...(trace && { trace }),
     };
     const out = level === 'error' ? process.stderr : process.stdout;
     out.write(JSON.stringify(entry) + '\n');
+  }
+
+  /**
+   * Las propiedades de Error (message, stack, name) no son enumerables,
+   * por lo que JSON.stringify las omite y produce {}. Las extraemos explícitamente.
+   */
+  private serialize(value: unknown): unknown {
+    if (value instanceof Error) {
+      return {
+        name: value.name,
+        message: value.message,
+        ...(value.stack && { stack: value.stack }),
+      };
+    }
+    if (typeof value === 'object' && value !== null) return value;
+    return String(value);
   }
 
   log(message: unknown, ...optionalParams: unknown[]): void {
