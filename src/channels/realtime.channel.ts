@@ -43,6 +43,7 @@ export class RealtimeChannel implements NotificationChannel {
     }
 
     this.gateway.emitToUser(message.userId, {
+      type: message.type ?? null,
       title: message.title,
       body: message.body,
       data: message.data ?? null,

@@ -271,6 +271,7 @@ export class NotificationsService {
   ): Promise<ChannelMessage> {
     const base: ChannelMessage = {
       userId: req.recipientUserId ?? null,
+      type: req.type,
       title: req.title,
       body: req.body,
       data: req.data ?? null,
