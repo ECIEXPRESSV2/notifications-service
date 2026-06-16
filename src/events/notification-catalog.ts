@@ -195,7 +195,7 @@ export const NotificationCatalog: Record<string, Builder> = {
 
   // --------------------------------------------------------------- Financial
   [ConsumedEvents.WALLET_TOPUP_APPROVED]: (p: WalletTopupApprovedPayload) => {
-    if (!p.userId) return null; // TODO: Financial debe incluir userId
+    if (!p.userId) return null;
     return {
       audience: 'user',
       userId: p.userId,

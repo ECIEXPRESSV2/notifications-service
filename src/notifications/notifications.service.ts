@@ -280,6 +280,8 @@ export class NotificationsService {
       case ChannelType.EMAIL:
         return {
           ...base,
+          sourceEvent: req.sourceEvent ?? null,
+          recipientName: recipient?.fullName ?? null,
           destination: req.emailOverride ?? recipient?.email ?? null,
         };
       case ChannelType.WHATSAPP:
