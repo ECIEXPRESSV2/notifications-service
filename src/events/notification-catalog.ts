@@ -20,6 +20,7 @@ import {
 } from './payloads/fulfillment.payloads';
 import {
   WalletTopupApprovedPayload,
+  WalletTopupFailedPayload,
   PaymentProcessedPayload,
   PaymentFailedPayload,
   PaymentReleasedPayload,
@@ -206,6 +207,25 @@ export const NotificationCatalog: Record<string, Builder> = {
       channels: [EMAIL, WHATSAPP, SMS, PUSH, REALTIME],
       data: { topupId: p.topupId, amount: p.amount },
       dedupSeed: p.topupId ?? p.userId,
+    };
+  },
+
+  [ConsumedEvents.WALLET_TOPUP_FAILED]: (p: WalletTopupFailedPayload) => {
+    if (!p.userId) return null; // sin dueño no hay a quién avisar
+    return {
+      audience: 'user',
+      userId: p.userId,
+      type: 'wallet.topup_failed',
+      title: 'Hubo un error al procesar tu recarga',
+      body: `No pudimos procesar tu recarga por ${formatCop(p.amount)}${p.paymentMethod ? ` con ${p.paymentMethod}` : ''}. Intenta de nuevo o usa otro medio de pago.`,
+      channels: [EMAIL, WHATSAPP, REALTIME],
+      data: {
+        topupId: p.topupId,
+        amount: p.amount,
+        paymentMethod: p.paymentMethod,
+        reason: p.reason,
+      },
+      dedupSeed: p.topupId ? `${p.topupId}:failed` : `${p.userId}:topup_failed`,
     };
   },
 

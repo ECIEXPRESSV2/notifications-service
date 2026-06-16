@@ -4,6 +4,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { databaseConfig } from './config/database.config';
 import { rabbitmqConfig } from './config/rabbitmq.config';
 import { channelsConfig } from './config/channels.config';
+import { appConfig } from './config/app.config';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { LoggerModule } from './common/logger/logger.module';
@@ -21,7 +22,7 @@ import { NotificationsModule } from './notifications/notifications.module';
     LoggerModule,
     ConfigModule.forRoot({
       isGlobal: true,
-      load: [databaseConfig, rabbitmqConfig, channelsConfig],
+      load: [databaseConfig, rabbitmqConfig, channelsConfig, appConfig],
     }),
     TypeOrmModule.forRootAsync({
       inject: [ConfigService],

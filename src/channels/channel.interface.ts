@@ -16,6 +16,8 @@ export interface ChannelMessage {
   userId?: string | null;
   /** Routing key del evento origen — resuelve la plantilla en templates/{service}/{event}.html */
   sourceEvent?: string | null;
+  /** Tipo de notificación (del catálogo) — el front lo usa para elegir el estilo del toast. */
+  type?: string | null;
   /** Nombre del destinatario — disponible como {{recipientName}} en plantillas. */
   recipientName?: string | null;
   title: string;
