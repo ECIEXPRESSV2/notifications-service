@@ -13,6 +13,19 @@ import {
 } from '../events/payloads/identity.payloads';
 
 /**
+ * Normaliza un número de teléfono a E.164. Asume Colombia (+57) si el número
+ * de 10 dígitos no tiene prefijo internacional.
+ */
+function normalizePhone(phone?: string | null): string | null {
+  if (!phone) return null;
+  const digits = phone.replace(/\D/g, '');
+  if (phone.startsWith('+')) return phone.trim();
+  if (digits.startsWith('57') && digits.length === 12) return `+${digits}`;
+  if (digits.length === 10) return `+57${digits}`;
+  return phone.trim();
+}
+
+/**
  * Mantiene la proyección local de usuarios (datos de contacto) y de negocios (para
  * resolver el dueño al que notificar). Se alimenta de los eventos de Identity. Todos
  * los handlers son idempotentes (upsert), porque los eventos pueden llegar duplicados.
@@ -36,7 +49,7 @@ export class RecipientsService {
         id: payload.userId,
         email: payload.email ?? null,
         fullName: payload.fullName ?? null,
-        phone: payload.phone ?? null,
+        phone: normalizePhone(payload.phone),
         isActive: true,
       }),
     );
@@ -55,7 +68,7 @@ export class RecipientsService {
 
     const values = payload.newValues ?? {};
     if (values.email !== undefined) recipient.email = values.email;
-    if (values.phone !== undefined) recipient.phone = values.phone;
+    if (values.phone !== undefined) recipient.phone = normalizePhone(values.phone);
     if (values.fullName !== undefined) recipient.fullName = values.fullName;
 
     await this.recipients.save(recipient);
