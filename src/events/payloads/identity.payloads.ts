@@ -29,7 +29,15 @@ export interface UserProfileUpdatedPayload {
 /** routing key: `identity.user.deactivated` */
 export interface UserDeactivatedPayload {
   userId: string;
-  reason?: string;
+  reason?: string; // estado que provocó la baja: INACTIVE | SUSPENDED
+}
+
+/** routing key: `identity.user.role_changed` */
+export interface UserRoleChangedPayload {
+  userId: string;
+  roleId?: string;
+  roleName?: string;
+  action?: 'assigned' | 'revoked';
 }
 
 /** routing key: `identity.store.created` */
@@ -44,4 +52,23 @@ export interface StoreUpdatedPayload {
   storeId: string;
   name?: string;
   status?: string;
+  previousStatus?: string;
+  newStatus?: string;
+  reason?: string;
+}
+
+/** routing key: `identity.store.temporarily_closed` */
+export interface StoreTemporarilyClosedPayload {
+  storeId: string;
+  closureId?: string;
+  startsAt?: string;
+  endsAt?: string;
+  reason?: string;
+}
+
+/** routing key: `identity.store.staff_changed` */
+export interface StoreStaffChangedPayload {
+  storeId: string;
+  userId: string; // vendedor afectado: a este usuario se le notifica
+  action?: 'assigned' | 'removed';
 }
