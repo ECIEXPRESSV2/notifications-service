@@ -11,9 +11,12 @@ export const ConsumedEvents = {
   USER_REGISTERED: 'identity.user.registered',
   USER_PROFILE_UPDATED: 'identity.user.profile_updated',
   USER_DEACTIVATED: 'identity.user.deactivated',
+  USER_ROLE_CHANGED: 'identity.user.role_changed',
   STORE_CREATED: 'identity.store.created',
   STORE_UPDATED: 'identity.store.updated',
   STORE_STATUS_CHANGED: 'identity.store.status_changed',
+  STORE_TEMPORARILY_CLOSED: 'identity.store.temporarily_closed',
+  STORE_STAFF_CHANGED: 'identity.store.staff_changed',
 
   // Order & Communication
   ORDER_CREATED: 'order.order.created',
