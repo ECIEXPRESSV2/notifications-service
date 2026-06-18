@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>{{title}}</title>
+  <style>
+    body { margin: 0; padding: 0; background: #f4f6f8; font-family: 'Segoe UI', Arial, sans-serif; color: #1a1a2e; }
+    .wrapper { max-width: 560px; margin: 40px auto; background: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 2px 12px rgba(0,0,0,.08); }
+    .header { background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); padding: 32px 40px; text-align: center; }
+    .header-title { color: #ffffff; font-size: 13px; letter-spacing: 2px; text-transform: uppercase; margin-top: 16px; opacity: .7; }
+    .hero { background: #0f3460; padding: 36px 40px; text-align: center; }
+    .hero-icon { font-size: 48px; }
+    .hero-label { color: #a0c4ff; font-size: 14px; margin-top: 8px; }
+    .body { padding: 32px 40px; }
+    .greeting { font-size: 16px; color: #444; margin-bottom: 20px; }
+    .cta { text-align: center; margin: 28px 0 8px; }
+    .cta a { display: inline-block; background: #0f3460; color: #ffffff; text-decoration: none; padding: 14px 32px; border-radius: 8px; font-weight: 600; font-size: 15px; }
+    .footer { background: #f8fafc; border-top: 1px solid #eef1f5; padding: 24px 40px; text-align: center; font-size: 12px; color: #aaa; line-height: 1.7; }
+  </style>
+</head>
+<body>
+  <div class="wrapper">
+    <div class="header">
+      <div style="color:#ffffff;font-size:22px;font-weight:700;letter-spacing:-0.5px;">ECI<span style="color:#a0c4ff;">Express</span></div>
+      <div class="header-title">Punto de venta</div>
+    </div>
+
+    <div class="hero">
+      <div class="hero-icon">&#128100;</div>
+      <div class="hero-label">Asignación actualizada</div>
+    </div>
+
+    <div class="body">
+      <p class="greeting">Hola{{recipientName}},</p>
+      <p style="font-size:15px;color:#555;line-height:1.6;">
+        {{body}}
+      </p>
+
+      <div class="cta">
+        <a href="{{frontendUrl}}/store">Ir al panel</a>
+      </div>
+    </div>
+
+    <div class="footer">
+      &copy; {{year}} ECIExpress &mdash; Escuela Colombiana de Ingeniería<br />
+      Este es un mensaje automático, por favor no respondas a este correo.
+    </div>
+  </div>
+</body>
+</html>

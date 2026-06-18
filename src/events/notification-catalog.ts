@@ -3,7 +3,13 @@ import { formatCop } from '../common/format.util';
 import { ConsumedEvents } from './event-patterns';
 import {
   UserRegisteredPayload,
+  UserProfileUpdatedPayload,
+  UserDeactivatedPayload,
+  UserRoleChangedPayload,
   StoreCreatedPayload,
+  StoreUpdatedPayload,
+  StoreTemporarilyClosedPayload,
+  StoreStaffChangedPayload,
 } from './payloads/identity.payloads';
 import {
   OrderCreatedPayload,
@@ -86,6 +92,100 @@ export const NotificationCatalog: Record<string, Builder> = {
       channels: [EMAIL, REALTIME],
       data: { storeId: p.storeId },
       dedupSeed: p.storeId,
+    };
+  },
+
+  [ConsumedEvents.USER_PROFILE_UPDATED]: (p: UserProfileUpdatedPayload) => ({
+    // Aviso de seguridad: confirmamos al titular que sus datos cambiaron, sin saturar
+    // con push (no es una acción que requiera atención inmediata).
+    audience: 'user',
+    userId: p.userId,
+    type: 'user.profile_updated',
+    title: 'Actualizamos los datos de tu cuenta',
+    body: `Se modificaron los datos de tu cuenta de ECIExpress. Si no fuiste tú, contacta a soporte cuanto antes.`,
+    channels: [EMAIL, REALTIME],
+    data: { userId: p.userId, changedFields: p.changedFields },
+    dedupSeed: p.userId,
+  }),
+
+  [ConsumedEvents.USER_DEACTIVATED]: (p: UserDeactivatedPayload) => {
+    const suspended = p.reason === 'SUSPENDED';
+    return {
+      audience: 'user',
+      userId: p.userId,
+      type: 'user.deactivated',
+      title: suspended ? 'Tu cuenta fue suspendida' : 'Tu cuenta fue desactivada',
+      body: suspended
+        ? 'Tu cuenta de ECIExpress fue suspendida temporalmente. Si crees que es un error, comunícate con soporte.'
+        : 'Tu cuenta de ECIExpress fue desactivada. Si quieres reactivarla, comunícate con soporte.',
+      // Email sí o sí (queda registro aunque ya no entre a la app); realtime por si está conectado.
+      channels: [EMAIL, REALTIME],
+      data: { userId: p.userId, reason: p.reason },
+      dedupSeed: `${p.userId}:deactivated:${p.reason ?? ''}`,
+    };
+  },
+
+  [ConsumedEvents.USER_ROLE_CHANGED]: (p: UserRoleChangedPayload) => {
+    const assigned = p.action !== 'revoked';
+    const roleLabel = p.roleName ?? 'un rol';
+    return {
+      audience: 'user',
+      userId: p.userId,
+      type: 'user.role_changed',
+      title: assigned ? 'Tienes un nuevo rol' : 'Se actualizó tu rol',
+      body: assigned
+        ? `Ahora tienes el rol "${roleLabel}" en ECIExpress. Revisa las nuevas opciones disponibles en tu cuenta.`
+        : `Se retiró el rol "${roleLabel}" de tu cuenta de ECIExpress.`,
+      channels: [EMAIL, REALTIME, PUSH],
+      data: { userId: p.userId, roleId: p.roleId, action: p.action },
+      dedupSeed: `${p.userId}:role:${p.roleId ?? roleLabel}:${p.action ?? ''}`,
+    };
+  },
+
+  [ConsumedEvents.STORE_STATUS_CHANGED]: (p: StoreUpdatedPayload) => {
+    const status = p.newStatus ?? p.status;
+    return {
+      audience: 'store',
+      storeId: p.storeId,
+      type: 'store.status_changed',
+      title: 'El estado de tu tienda cambió',
+      body: `El estado de tu tienda cambió a: ${status ?? 'actualizado'}${p.reason ? ` (${p.reason})` : ''}.`,
+      channels: [EMAIL, REALTIME],
+      data: { storeId: p.storeId, status, reason: p.reason },
+      dedupSeed: `${p.storeId}:status:${status ?? ''}`,
+    };
+  },
+
+  [ConsumedEvents.STORE_TEMPORARILY_CLOSED]: (p: StoreTemporarilyClosedPayload) => ({
+    audience: 'store',
+    storeId: p.storeId,
+    type: 'store.temporarily_closed',
+    title: 'Se programó un cierre temporal de tu tienda',
+    body: `Tu tienda tiene un cierre temporal programado${p.startsAt ? ` desde el ${p.startsAt}` : ''}${p.endsAt ? ` hasta el ${p.endsAt}` : ''}${p.reason ? `. Motivo: ${p.reason}` : ''}.`,
+    channels: [EMAIL, REALTIME],
+    data: {
+      storeId: p.storeId,
+      closureId: p.closureId,
+      startsAt: p.startsAt,
+      endsAt: p.endsAt,
+    },
+    dedupSeed: p.closureId ?? `${p.storeId}:closure`,
+  }),
+
+  [ConsumedEvents.STORE_STAFF_CHANGED]: (p: StoreStaffChangedPayload) => {
+    if (!p.userId) return null; // sin vendedor afectado no hay a quién avisar
+    const assigned = p.action !== 'removed';
+    return {
+      audience: 'user',
+      userId: p.userId,
+      type: 'store.staff_changed',
+      title: assigned ? 'Te asignaron a un punto de venta' : 'Te retiraron de un punto de venta',
+      body: assigned
+        ? 'Fuiste asignado como vendedor de un punto de venta en ECIExpress. Ya puedes gestionar sus pedidos.'
+        : 'Fuiste retirado como vendedor de un punto de venta en ECIExpress.',
+      channels: [EMAIL, REALTIME, PUSH],
+      data: { storeId: p.storeId, action: p.action },
+      dedupSeed: `${p.storeId}:staff:${p.userId}:${p.action ?? ''}`,
     };
   },
 
