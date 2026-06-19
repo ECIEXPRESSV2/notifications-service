@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import axios from 'axios';
+import * as nodemailer from 'nodemailer';
 
 interface ServiceCheck {
   name: string;
@@ -67,7 +68,8 @@ export class WakeupService {
   }
 
   private async sendReport(results: ServiceCheck[]): Promise<void> {
-    const apiKey = this.config.get<string>('channels.email.resendApiKey');
+    const gmailUser = this.config.get<string>('channels.email.gmailUser');
+    const gmailPass = this.config.get<string>('channels.email.gmailAppPassword');
     const from = this.config.get<string>('channels.email.from')!;
     const to = this.config.get<string>('app.wakeupEmail');
 
@@ -80,7 +82,7 @@ export class WakeupService {
     const subject = `[ECIExpress] Wakeup Report — ${upCount}/${results.length} servicios activos`;
     const html = this.buildHtml(results);
 
-    if (!apiKey) {
+    if (!gmailUser || !gmailPass) {
       this.logger.log(
         `[SANDBOX EMAIL] Para: ${to} | Asunto: ${subject}\n` +
           results.map((r) => `  ${r.name}: ${r.status}`).join('\n'),
@@ -89,11 +91,11 @@ export class WakeupService {
     }
 
     try {
-      await axios.post(
-        'https://api.resend.com/emails',
-        { from, to, subject, html },
-        { headers: { Authorization: `Bearer ${apiKey}` }, timeout: 10_000 },
-      );
+      const transporter = nodemailer.createTransport({
+        service: 'gmail',
+        auth: { user: gmailUser, pass: gmailPass },
+      });
+      await transporter.sendMail({ from, to, subject, html });
       this.logger.log(`Reporte de wakeup enviado a ${to}.`);
     } catch (err) {
       this.logger.error(`Error al enviar el reporte de wakeup: ${err}`);
