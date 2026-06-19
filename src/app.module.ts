@@ -16,6 +16,7 @@ import { RecipientsModule } from './recipients/recipients.module';
 import { DevicesModule } from './devices/devices.module';
 import { PreferencesModule } from './preferences/preferences.module';
 import { NotificationsModule } from './notifications/notifications.module';
+import { WakeupModule } from './wakeup/wakeup.module';
 
 @Module({
   imports: [
@@ -38,6 +39,7 @@ import { NotificationsModule } from './notifications/notifications.module';
     PreferencesModule,
     NotificationsModule,
     EventsModule,
+    WakeupModule,
   ],
   controllers: [AppController],
   providers: [AppService],
