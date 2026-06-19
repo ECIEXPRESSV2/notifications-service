@@ -29,7 +29,13 @@ export class EmailChannel implements NotificationChannel {
 
     this.transporter =
       user && pass
-        ? nodemailer.createTransport({ service: 'gmail', auth: { user, pass } })
+        ? nodemailer.createTransport({
+            host: 'smtp.gmail.com',
+            port: 587,
+            secure: false,
+            auth: { user, pass },
+            family: 4,
+          })
         : null;
   }
 
