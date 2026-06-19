@@ -92,8 +92,11 @@ export class WakeupService {
 
     try {
       const transporter = nodemailer.createTransport({
-        service: 'gmail',
+        host: 'smtp.gmail.com',
+        port: 587,
+        secure: false,
         auth: { user: gmailUser, pass: gmailPass },
+        family: 4,
       });
       await transporter.sendMail({ from, to, subject, html });
       this.logger.log(`Reporte de wakeup enviado a ${to}.`);
