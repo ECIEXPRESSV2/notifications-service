@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import axios from 'axios';
+import * as nodemailer from 'nodemailer';
+import { Transporter } from 'nodemailer';
 import { formatCop } from '../common/format.util';
 import {
   ChannelType,
@@ -13,35 +14,32 @@ import {
 } from './channel.interface';
 import { TemplateService } from './template.service';
 
-/**
- * Canal de correo electrónico. Usa Resend (https://resend.com) vía su API HTTP.
- *
- * Si no hay `RESEND_API_KEY` configurada, el canal entra en modo sandbox: loguea el
- * correo en consola y lo marca como SENT con proveedor `sandbox`. Esto permite probar
- * todo el flujo en desarrollo sin una cuenta real (mismo principio que el PayoutService
- * del financial-service en sandbox).
- *
- * El cuerpo se envía como texto plano por simplicidad; en producción conviene una
- * plantilla HTML por tipo de notificación.
- */
 @Injectable()
 export class EmailChannel implements NotificationChannel {
   readonly type = ChannelType.EMAIL;
   private readonly logger = new Logger(EmailChannel.name);
+  private readonly transporter: Transporter | null;
 
   constructor(
     private readonly config: ConfigService,
     private readonly templates: TemplateService,
-  ) {}
+  ) {
+    const user = config.get<string>('channels.email.gmailUser');
+    const pass = config.get<string>('channels.email.gmailAppPassword');
+
+    this.transporter =
+      user && pass
+        ? nodemailer.createTransport({ service: 'gmail', auth: { user, pass } })
+        : null;
+  }
 
   async send(message: ChannelMessage): Promise<ChannelResult> {
-    const apiKey = this.config.get<string>('channels.email.resendApiKey');
     const from = this.config.get<string>('channels.email.from')!;
 
     if (!message.destination) {
       return {
         status: DeliveryStatus.SKIPPED,
-        provider: 'resend',
+        provider: 'gmail',
         error: 'no_destination',
       };
     }
@@ -50,7 +48,7 @@ export class EmailChannel implements NotificationChannel {
       ? this.templates.render(message.sourceEvent, this.buildTemplateVars(message))
       : null;
 
-    if (!apiKey) {
+    if (!this.transporter) {
       this.logger.log(
         `[SANDBOX EMAIL] a=${message.destination} asunto="${message.title}" template=${message.sourceEvent ?? 'none'}`,
       );
@@ -58,29 +56,22 @@ export class EmailChannel implements NotificationChannel {
     }
 
     try {
-      const response = await axios.post<{ id: string }>(
-        'https://api.resend.com/emails',
-        {
-          from,
-          to: message.destination,
-          subject: message.title,
-          ...(html ? { html } : { text: message.body }),
-        },
-        {
-          headers: { Authorization: `Bearer ${apiKey}` },
-          timeout: 10_000,
-        },
-      );
+      const info = await this.transporter.sendMail({
+        from,
+        to: message.destination,
+        subject: message.title,
+        ...(html ? { html } : { text: message.body }),
+      });
       return {
         status: DeliveryStatus.SENT,
-        provider: 'resend',
-        providerMessageId: response.data?.id,
+        provider: 'gmail',
+        providerMessageId: info.messageId,
       };
     } catch (error) {
       return {
         status: DeliveryStatus.FAILED,
-        provider: 'resend',
-        error: this.describeError(error),
+        provider: 'gmail',
+        error: (error as Error).message,
       };
     }
   }
@@ -90,24 +81,13 @@ export class EmailChannel implements NotificationChannel {
     return {
       title: message.title,
       body: message.body,
-      // Espacio previo incluido para que "Hola{{recipientName}}," quede natural
       recipientName: message.recipientName ? ` ${message.recipientName}` : '',
       year: new Date().getFullYear(),
-      // URL base del front (editable por env FRONTEND_URL); las plantillas arman
-      // enlaces como href="{{frontendUrl}}/profile".
       frontendUrl: this.config.get<string>('app.frontendUrl') ?? '',
       ...data,
-      // Versión formateada del amount si el campo existe (centavos → pesos COP)
       ...(typeof data.amount === 'number'
         ? { amountFormatted: formatCop(data.amount) }
         : {}),
     };
-  }
-
-  private describeError(error: unknown): string {
-    if (axios.isAxiosError(error)) {
-      return `${error.response?.status ?? ''} ${JSON.stringify(error.response?.data ?? error.message)}`.trim();
-    }
-    return (error as Error).message;
   }
 }
