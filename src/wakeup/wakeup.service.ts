@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import axios from 'axios';
 import * as nodemailer from 'nodemailer';
+import SMTPTransport from 'nodemailer/lib/smtp-transport';
 
 interface ServiceCheck {
   name: string;
@@ -91,13 +92,15 @@ export class WakeupService {
     }
 
     try {
-      const transporter = nodemailer.createTransport({
-        host: 'smtp.gmail.com',
-        port: 587,
-        secure: false,
-        auth: { user: gmailUser, pass: gmailPass },
-        family: 4,
-      });
+      const transporter = nodemailer.createTransport(
+        new SMTPTransport({
+          host: 'smtp.gmail.com',
+          port: 587,
+          secure: false,
+          auth: { user: gmailUser, pass: gmailPass },
+          family: 4,
+        }),
+      );
       await transporter.sendMail({ from, to, subject, html });
       this.logger.log(`Reporte de wakeup enviado a ${to}.`);
     } catch (err) {
