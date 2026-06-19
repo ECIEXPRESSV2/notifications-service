@@ -1,7 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import axios from 'axios';
-import * as nodemailer from 'nodemailer';
 
 interface ServiceCheck {
   name: string;
@@ -68,8 +67,7 @@ export class WakeupService {
   }
 
   private async sendReport(results: ServiceCheck[]): Promise<void> {
-    const gmailUser = this.config.get<string>('channels.email.gmailUser');
-    const gmailPass = this.config.get<string>('channels.email.gmailAppPassword');
+    const apiKey = this.config.get<string>('channels.email.brevoApiKey');
     const from = this.config.get<string>('channels.email.from')!;
     const to = this.config.get<string>('app.wakeupEmail');
 
@@ -82,7 +80,7 @@ export class WakeupService {
     const subject = `[ECIExpress] Wakeup Report — ${upCount}/${results.length} servicios activos`;
     const html = this.buildHtml(results);
 
-    if (!gmailUser || !gmailPass) {
+    if (!apiKey) {
       this.logger.log(
         `[SANDBOX EMAIL] Para: ${to} | Asunto: ${subject}\n` +
           results.map((r) => `  ${r.name}: ${r.status}`).join('\n'),
@@ -91,18 +89,22 @@ export class WakeupService {
     }
 
     try {
-      const transporter = nodemailer.createTransport({
-        host: 'smtp.gmail.com',
-        port: 587,
-        secure: false,
-        auth: { user: gmailUser, pass: gmailPass },
-        family: 4,
-      } as any);
-      await transporter.sendMail({ from, to, subject, html });
+      const sender = this.parseSender(from);
+      await axios.post(
+        'https://api.brevo.com/v3/smtp/email',
+        { sender, to: [{ email: to }], subject, htmlContent: html },
+        { headers: { 'api-key': apiKey, 'Content-Type': 'application/json' }, timeout: 10_000 },
+      );
       this.logger.log(`Reporte de wakeup enviado a ${to}.`);
     } catch (err) {
       this.logger.error(`Error al enviar el reporte de wakeup: ${err}`);
     }
+  }
+
+  private parseSender(from: string): { name: string; email: string } {
+    const match = from.match(/^(.+?)\s*<(.+?)>$/);
+    if (match) return { name: match[1].trim(), email: match[2].trim() };
+    return { name: 'ECIExpress', email: from.trim() };
   }
 
   private buildHtml(results: ServiceCheck[]): string {
