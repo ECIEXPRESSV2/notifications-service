@@ -9,8 +9,6 @@ import { registerAs } from '@nestjs/config';
  * variable de entorno (sin tocar plantillas ni código).
  */
 export const appConfig = registerAs('app', () => ({
-  frontendUrl: (process.env.FRONTEND_URL ?? 'http://localhost:5173').replace(
-    /\/$/,
-    '',
-  ),
+  frontendUrl: (process.env.FRONTEND_URL ?? 'http://localhost:5173').replace(/\/$/, ''),
+  wakeupEmail: process.env.WAKEUP_REPORT_EMAIL,
 }));
