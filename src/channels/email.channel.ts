@@ -2,7 +2,6 @@ import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import * as nodemailer from 'nodemailer';
 import { Transporter } from 'nodemailer';
-import SMTPTransport from 'nodemailer/lib/smtp-transport';
 import { formatCop } from '../common/format.util';
 import {
   ChannelType,
@@ -30,15 +29,13 @@ export class EmailChannel implements NotificationChannel {
 
     this.transporter =
       user && pass
-        ? nodemailer.createTransport(
-            new SMTPTransport({
-              host: 'smtp.gmail.com',
-              port: 587,
-              secure: false,
-              auth: { user, pass },
-              family: 4,
-            }),
-          )
+        ? nodemailer.createTransport({
+            host: 'smtp.gmail.com',
+            port: 587,
+            secure: false,
+            auth: { user, pass },
+            family: 4,
+          } as any)
         : null;
   }
 
