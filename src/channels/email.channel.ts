@@ -1,7 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import * as nodemailer from 'nodemailer';
-import { Transporter } from 'nodemailer';
+import axios from 'axios';
 import { formatCop } from '../common/format.util';
 import {
   ChannelType,
@@ -18,34 +17,20 @@ import { TemplateService } from './template.service';
 export class EmailChannel implements NotificationChannel {
   readonly type = ChannelType.EMAIL;
   private readonly logger = new Logger(EmailChannel.name);
-  private readonly transporter: Transporter | null;
 
   constructor(
     private readonly config: ConfigService,
     private readonly templates: TemplateService,
-  ) {
-    const user = config.get<string>('channels.email.gmailUser');
-    const pass = config.get<string>('channels.email.gmailAppPassword');
-
-    this.transporter =
-      user && pass
-        ? nodemailer.createTransport({
-            host: 'smtp.gmail.com',
-            port: 587,
-            secure: false,
-            auth: { user, pass },
-            family: 4,
-          } as any)
-        : null;
-  }
+  ) {}
 
   async send(message: ChannelMessage): Promise<ChannelResult> {
+    const apiKey = this.config.get<string>('channels.email.brevoApiKey');
     const from = this.config.get<string>('channels.email.from')!;
 
     if (!message.destination) {
       return {
         status: DeliveryStatus.SKIPPED,
-        provider: 'gmail',
+        provider: 'brevo',
         error: 'no_destination',
       };
     }
@@ -54,7 +39,7 @@ export class EmailChannel implements NotificationChannel {
       ? this.templates.render(message.sourceEvent, this.buildTemplateVars(message))
       : null;
 
-    if (!this.transporter) {
+    if (!apiKey) {
       this.logger.log(
         `[SANDBOX EMAIL] a=${message.destination} asunto="${message.title}" template=${message.sourceEvent ?? 'none'}`,
       );
@@ -62,24 +47,40 @@ export class EmailChannel implements NotificationChannel {
     }
 
     try {
-      const info = await this.transporter.sendMail({
-        from,
-        to: message.destination,
-        subject: message.title,
-        ...(html ? { html } : { text: message.body }),
-      });
+      const sender = this.parseSender(from);
+      const response = await axios.post<{ messageId: string }>(
+        'https://api.brevo.com/v3/smtp/email',
+        {
+          sender,
+          to: [{ email: message.destination, name: message.recipientName ?? undefined }],
+          subject: message.title,
+          ...(html ? { htmlContent: html } : { textContent: message.body }),
+        },
+        {
+          headers: { 'api-key': apiKey, 'Content-Type': 'application/json' },
+          timeout: 10_000,
+        },
+      );
       return {
         status: DeliveryStatus.SENT,
-        provider: 'gmail',
-        providerMessageId: info.messageId,
+        provider: 'brevo',
+        providerMessageId: response.data?.messageId,
       };
     } catch (error) {
       return {
         status: DeliveryStatus.FAILED,
-        provider: 'gmail',
-        error: (error as Error).message,
+        provider: 'brevo',
+        error: axios.isAxiosError(error)
+          ? `${error.response?.status} ${JSON.stringify(error.response?.data ?? error.message)}`
+          : (error as Error).message,
       };
     }
+  }
+
+  private parseSender(from: string): { name: string; email: string } {
+    const match = from.match(/^(.+?)\s*<(.+?)>$/);
+    if (match) return { name: match[1].trim(), email: match[2].trim() };
+    return { name: 'ECIExpress', email: from.trim() };
   }
 
   private buildTemplateVars(message: ChannelMessage): Record<string, unknown> {

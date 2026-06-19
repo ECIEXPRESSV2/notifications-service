@@ -11,9 +11,8 @@ import { registerAs } from '@nestjs/config';
  */
 export const channelsConfig = registerAs('channels', () => ({
   email: {
-    gmailUser: process.env.GMAIL_USER,
-    gmailAppPassword: process.env.GMAIL_APP_PASSWORD,
-    from: process.env.MAIL_FROM ?? `ECIExpress <${process.env.GMAIL_USER ?? 'no-reply@eciexpress.edu.co'}>`,
+    brevoApiKey: process.env.BREVO_API_KEY,
+    from: process.env.MAIL_FROM ?? 'ECIExpress <no-reply@eciexpress.edu.co>',
   },
   whatsapp: {
     // 'cloud' = Meta WhatsApp Cloud API (oficial); 'openwa' = servidor OpenWA
