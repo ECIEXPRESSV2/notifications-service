@@ -20,10 +20,15 @@ const SERVICE_MAP: Record<string, string> = {
   'reporting-service': 'SERVICE_REPORTING_URL',
 };
 
+const MAX_ATTEMPTS = 4;
+const ATTEMPT_TIMEOUT_MS = 15_000;
+const RETRY_DELAY_MS = 20_000;
+
+const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
+
 @Injectable()
 export class WakeupService {
   private readonly logger = new Logger(WakeupService.name);
-  private readonly HEALTH_TIMEOUT_MS = 50_000;
 
   constructor(private readonly config: ConfigService) {}
 
@@ -35,11 +40,15 @@ export class WakeupService {
       return;
     }
 
-    this.logger.log(`Iniciando wakeup de ${services.length} microservicio(s)...`);
-    const results = await Promise.all(services.map((s) => this.checkService(s)));
+    this.logger.log(
+      `Iniciando wakeup de ${services.length} microservicio(s) ` +
+        `(max ${MAX_ATTEMPTS} intentos, ${RETRY_DELAY_MS / 1000}s entre reintentos)...`,
+    );
+
+    const results = await Promise.all(services.map((s) => this.checkServiceWithRetry(s)));
 
     const upCount = results.filter((r) => r.status === 'UP').length;
-    this.logger.log(`Wakeup completado: ${upCount}/${results.length} servicios respondieron.`);
+    this.logger.log(`Wakeup completado: ${upCount}/${results.length} servicios activos.`);
 
     await this.sendReport(results);
   }
@@ -50,21 +59,26 @@ export class WakeupService {
       .filter((s) => Boolean(s.url));
   }
 
-  private async checkService(service: { name: string; url: string }): Promise<ServiceCheck> {
+  private async checkServiceWithRetry(service: {
+    name: string;
+    url: string;
+  }): Promise<ServiceCheck> {
     const start = Date.now();
-    try {
-      await axios.get(`${service.url}/health`, { timeout: this.HEALTH_TIMEOUT_MS });
-      return { ...service, status: 'UP', responseTimeMs: Date.now() - start };
-    } catch (err) {
-      const isTimeout =
-        axios.isAxiosError(err) &&
-        (err.code === 'ECONNABORTED' || err.code === 'ETIMEDOUT');
-      return {
-        ...service,
-        status: isTimeout ? 'TIMEOUT' : 'DOWN',
-        responseTimeMs: Date.now() - start,
-      };
+
+    for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+      try {
+        await axios.get(`${service.url}/health`, { timeout: ATTEMPT_TIMEOUT_MS });
+        this.logger.log(`[${service.name}] UP (intento ${attempt}, ${Date.now() - start}ms)`);
+        return { ...service, status: 'UP', responseTimeMs: Date.now() - start };
+      } catch {
+        this.logger.warn(
+          `[${service.name}] Sin respuesta — intento ${attempt}/${MAX_ATTEMPTS}`,
+        );
+        if (attempt < MAX_ATTEMPTS) await sleep(RETRY_DELAY_MS);
+      }
     }
+
+    return { ...service, status: 'DOWN', responseTimeMs: Date.now() - start };
   }
 
   private async sendReport(results: ServiceCheck[]): Promise<void> {
