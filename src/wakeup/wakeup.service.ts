@@ -20,9 +20,9 @@ const SERVICE_MAP: Record<string, string> = {
   'reporting-service': 'SERVICE_REPORTING_URL',
 };
 
-const MAX_ATTEMPTS = 4;
-const ATTEMPT_TIMEOUT_MS = 15_000;
-const RETRY_DELAY_MS = 20_000;
+const MAX_ATTEMPTS = 5;
+const ATTEMPT_TIMEOUT_MS = 30_000;
+const RETRY_DELAY_MS = 30_000;
 
 const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
 
@@ -70,9 +70,12 @@ export class WakeupService {
         await axios.get(`${service.url}/health`, { timeout: ATTEMPT_TIMEOUT_MS });
         this.logger.log(`[${service.name}] UP (intento ${attempt}, ${Date.now() - start}ms)`);
         return { ...service, status: 'UP', responseTimeMs: Date.now() - start };
-      } catch {
+      } catch (err) {
+        const reason = axios.isAxiosError(err)
+          ? `${err.code ?? err.response?.status ?? 'error'}`
+          : (err as Error).message;
         this.logger.warn(
-          `[${service.name}] Sin respuesta — intento ${attempt}/${MAX_ATTEMPTS}`,
+          `[${service.name}] Sin respuesta — intento ${attempt}/${MAX_ATTEMPTS} (${reason})`,
         );
         if (attempt < MAX_ATTEMPTS) await sleep(RETRY_DELAY_MS);
       }
