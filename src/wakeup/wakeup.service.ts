@@ -20,9 +20,9 @@ const SERVICE_MAP: Record<string, string> = {
   'reporting-service': 'SERVICE_REPORTING_URL',
 };
 
-const MAX_ATTEMPTS = 5;
-const ATTEMPT_TIMEOUT_MS = 30_000;
-const RETRY_DELAY_MS = 30_000;
+const WAKE_TRIGGER_TIMEOUT_MS = 5_000;   // solo dispara el cold start, no espera respuesta
+const COLD_START_WAIT_MS = 45_000;        // pausa fija mientras Render arranca los servicios
+const HEALTH_CHECK_TIMEOUT_MS = 15_000;  // timeout final para verificar que están UP
 
 const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
 
@@ -40,12 +40,23 @@ export class WakeupService {
       return;
     }
 
-    this.logger.log(
-      `Iniciando wakeup de ${services.length} microservicio(s) ` +
-        `(max ${MAX_ATTEMPTS} intentos, ${RETRY_DELAY_MS / 1000}s entre reintentos)...`,
+    // Fase 1: disparar una petición corta a cada servicio para activar el cold start
+    this.logger.log(`[Fase 1] Disparando señales de wakeup a ${services.length} servicio(s)...`);
+    await Promise.allSettled(
+      services.map((s) =>
+        axios.get(`${s.url}/health`, { timeout: WAKE_TRIGGER_TIMEOUT_MS }).catch(() => {}),
+      ),
     );
 
-    const results = await Promise.all(services.map((s) => this.checkServiceWithRetry(s)));
+    // Fase 2: esperar a que Render levante los servicios
+    this.logger.log(
+      `[Fase 2] Esperando ${COLD_START_WAIT_MS / 1000}s para que los servicios arranquen...`,
+    );
+    await sleep(COLD_START_WAIT_MS);
+
+    // Fase 3: verificar cuáles respondieron
+    this.logger.log(`[Fase 3] Verificando estado de los servicios...`);
+    const results = await Promise.all(services.map((s) => this.checkService(s)));
 
     const upCount = results.filter((r) => r.status === 'UP').length;
     this.logger.log(`Wakeup completado: ${upCount}/${results.length} servicios activos.`);
@@ -59,29 +70,19 @@ export class WakeupService {
       .filter((s) => Boolean(s.url));
   }
 
-  private async checkServiceWithRetry(service: {
-    name: string;
-    url: string;
-  }): Promise<ServiceCheck> {
+  private async checkService(service: { name: string; url: string }): Promise<ServiceCheck> {
     const start = Date.now();
-
-    for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
-      try {
-        await axios.get(`${service.url}/health`, { timeout: ATTEMPT_TIMEOUT_MS });
-        this.logger.log(`[${service.name}] UP (intento ${attempt}, ${Date.now() - start}ms)`);
-        return { ...service, status: 'UP', responseTimeMs: Date.now() - start };
-      } catch (err) {
-        const reason = axios.isAxiosError(err)
-          ? `${err.code ?? err.response?.status ?? 'error'}`
-          : (err as Error).message;
-        this.logger.warn(
-          `[${service.name}] Sin respuesta — intento ${attempt}/${MAX_ATTEMPTS} (${reason})`,
-        );
-        if (attempt < MAX_ATTEMPTS) await sleep(RETRY_DELAY_MS);
-      }
+    try {
+      await axios.get(`${service.url}/health`, { timeout: HEALTH_CHECK_TIMEOUT_MS });
+      this.logger.log(`[${service.name}] UP (${Date.now() - start}ms)`);
+      return { ...service, status: 'UP', responseTimeMs: Date.now() - start };
+    } catch (err) {
+      const reason = axios.isAxiosError(err)
+        ? `${err.code ?? err.response?.status ?? 'error'}`
+        : (err as Error).message;
+      this.logger.warn(`[${service.name}] DOWN (${reason})`);
+      return { ...service, status: 'DOWN', responseTimeMs: Date.now() - start };
     }
-
-    return { ...service, status: 'DOWN', responseTimeMs: Date.now() - start };
   }
 
   private async sendReport(results: ServiceCheck[]): Promise<void> {
