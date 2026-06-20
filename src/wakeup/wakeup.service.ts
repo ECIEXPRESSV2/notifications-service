@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import axios from 'axios';
+import { sendViaGmailApi } from '../channels/email.channel';
 
 interface ServiceCheck {
   name: string;
@@ -67,7 +68,9 @@ export class WakeupService {
   }
 
   private async sendReport(results: ServiceCheck[]): Promise<void> {
-    const apiKey = this.config.get<string>('channels.email.brevoApiKey');
+    const clientId = this.config.get<string>('channels.email.gmailClientId');
+    const clientSecret = this.config.get<string>('channels.email.gmailClientSecret');
+    const refreshToken = this.config.get<string>('channels.email.gmailRefreshToken');
     const from = this.config.get<string>('channels.email.from')!;
     const to = this.config.get<string>('app.wakeupEmail');
 
@@ -77,10 +80,10 @@ export class WakeupService {
     }
 
     const upCount = results.filter((r) => r.status === 'UP').length;
-    const subject = `[ECIExpress] Wakeup Report — ${upCount}/${results.length} servicios activos`;
+    const subject = `[ECIExpress] Wakeup Report - ${upCount}/${results.length} servicios activos`;
     const html = this.buildHtml(results);
 
-    if (!apiKey) {
+    if (!clientId || !clientSecret || !refreshToken) {
       this.logger.log(
         `[SANDBOX EMAIL] Para: ${to} | Asunto: ${subject}\n` +
           results.map((r) => `  ${r.name}: ${r.status}`).join('\n'),
@@ -89,22 +92,11 @@ export class WakeupService {
     }
 
     try {
-      const sender = this.parseSender(from);
-      await axios.post(
-        'https://api.brevo.com/v3/smtp/email',
-        { sender, to: [{ email: to }], subject, htmlContent: html },
-        { headers: { 'api-key': apiKey, 'Content-Type': 'application/json' }, timeout: 10_000 },
-      );
+      await sendViaGmailApi({ clientId, clientSecret, refreshToken, from, to, subject, html });
       this.logger.log(`Reporte de wakeup enviado a ${to}.`);
     } catch (err) {
       this.logger.error(`Error al enviar el reporte de wakeup: ${err}`);
     }
-  }
-
-  private parseSender(from: string): { name: string; email: string } {
-    const match = from.match(/^(.+?)\s*<(.+?)>$/);
-    if (match) return { name: match[1].trim(), email: match[2].trim() };
-    return { name: 'ECIExpress', email: from.trim() };
   }
 
   private buildHtml(results: ServiceCheck[]): string {
