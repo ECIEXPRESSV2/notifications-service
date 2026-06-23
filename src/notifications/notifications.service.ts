@@ -9,7 +9,6 @@ import { ChannelDispatcherService } from '../channels/channel-dispatcher.service
 import { ChannelMessage } from '../channels/channel.interface';
 import { RecipientsService } from '../recipients/recipients.service';
 import { PreferencesService } from '../preferences/preferences.service';
-import { DevicesService } from '../devices/devices.service';
 import { NotificationLogger } from '../common/logger/notification.logger';
 import { maskDestination } from '../common/format.util';
 import { NotificationCatalog } from '../events/notification-catalog';
@@ -23,7 +22,6 @@ export interface DispatchRequest {
   recipientUserId?: string | null;
   emailOverride?: string;
   phoneOverride?: string;
-  deviceTokensOverride?: string[];
   channels: ChannelType[];
   type: string;
   title: string;
@@ -49,7 +47,6 @@ export class NotificationsService {
     private readonly dispatcher: ChannelDispatcherService,
     private readonly recipients: RecipientsService,
     private readonly preferences: PreferencesService,
-    private readonly devices: DevicesService,
     private readonly logger: NotificationLogger,
   ) {}
 
@@ -122,7 +119,6 @@ export class NotificationsService {
       recipientUserId: payload.recipientUserId ?? null,
       emailOverride: payload.email,
       phoneOverride: payload.phone,
-      deviceTokensOverride: payload.deviceTokens,
       channels: payload.channels,
       type: payload.type ?? 'custom',
       title: payload.title,
@@ -231,7 +227,7 @@ export class NotificationsService {
     }
 
     // Resolver el destino concreto del canal.
-    const message = await this.buildChannelMessage(channel, req, recipient);
+    const message = this.buildChannelMessage(channel, req, recipient);
 
     delivery.attempts = 1;
     const result = await this.dispatcher.send(channel, message);
@@ -240,9 +236,7 @@ export class NotificationsService {
     delivery.providerMessageId = result.providerMessageId ?? null;
     delivery.error = result.error ?? null;
     delivery.destination = maskDestination(
-      channel === ChannelType.PUSH
-        ? `${(message.deviceTokens ?? []).length} token(s)`
-        : (message.destination ?? message.userId ?? null),
+      message.destination ?? message.userId ?? null,
     );
     delivery.sentAt = result.status === DeliveryStatus.SENT ? new Date() : null;
 
@@ -264,11 +258,11 @@ export class NotificationsService {
     return this.deliveries.save(delivery);
   }
 
-  private async buildChannelMessage(
+  private buildChannelMessage(
     channel: ChannelType,
     req: DispatchRequest,
     recipient: Awaited<ReturnType<RecipientsService['findRecipient']>>,
-  ): Promise<ChannelMessage> {
+  ): ChannelMessage {
     const base: ChannelMessage = {
       userId: req.recipientUserId ?? null,
       type: req.type,
@@ -291,14 +285,6 @@ export class NotificationsService {
           ...base,
           destination: req.phoneOverride ?? recipient?.phone ?? null,
         };
-      case ChannelType.PUSH: {
-        const tokens =
-          req.deviceTokensOverride ??
-          (req.recipientUserId
-            ? await this.devices.getActiveTokens(req.recipientUserId)
-            : []);
-        return { ...base, deviceTokens: tokens };
-      }
       case ChannelType.REALTIME:
       default:
         return base;

@@ -4,7 +4,6 @@ import { ChannelMessage, ChannelResult } from './channel.interface';
 import { EmailChannel } from './email.channel';
 import { WhatsappChannel } from './whatsapp.channel';
 import { SmsChannel } from './sms.channel';
-import { PushChannel } from './push.channel';
 import { RealtimeChannel } from './realtime.channel';
 
 /**
@@ -23,14 +22,12 @@ export class ChannelDispatcherService {
     email: EmailChannel,
     whatsapp: WhatsappChannel,
     sms: SmsChannel,
-    push: PushChannel,
     realtime: RealtimeChannel,
   ) {
     this.registry = {
       [ChannelType.EMAIL]: email,
       [ChannelType.WHATSAPP]: whatsapp,
       [ChannelType.SMS]: sms,
-      [ChannelType.PUSH]: push,
       [ChannelType.REALTIME]: realtime,
     };
   }

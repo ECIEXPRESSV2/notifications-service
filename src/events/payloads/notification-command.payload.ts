@@ -16,7 +16,6 @@ export interface NotificationCommandPayload {
   /** Destinos explícitos (tienen prioridad sobre los datos guardados del usuario). */
   email?: string;
   phone?: string;
-  deviceTokens?: string[];
   /** Canales por los que enviar. */
   channels: ChannelType[];
   /** Tipo/plantilla para clasificar la notificación (opcional). */

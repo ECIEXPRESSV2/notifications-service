@@ -17,21 +17,15 @@ export const channelsConfig = registerAs('channels', () => ({
     from: process.env.MAIL_FROM ?? `ECIExpress <${process.env.GMAIL_USER ?? 'no-reply@eciexpress.edu.co'}>`,
   },
   whatsapp: {
-    // 'cloud' = Meta WhatsApp Cloud API (oficial); 'openwa' = servidor OpenWA
-    // (@open-wa/wa-automate) que expone WhatsApp Web por REST, gratis y sin Meta.
-    provider: (process.env.WHATSAPP_PROVIDER ?? 'cloud') as 'cloud' | 'openwa',
+    // WhatsApp Cloud API de Meta (graph.facebook.com). Requiere una app verificada
+    // en Meta Business con el número registrado como sender.
     apiUrl: process.env.WHATSAPP_API_URL ?? 'https://graph.facebook.com/v21.0',
     phoneNumberId: process.env.WHATSAPP_PHONE_NUMBER_ID,
     token: process.env.WHATSAPP_TOKEN,
-    // OpenWA: api_key opcional con el que se levantó el servidor (--api-key).
-    apiKey: process.env.WHATSAPP_OPENWA_API_KEY,
   },
   sms: {
     accountSid: process.env.TWILIO_ACCOUNT_SID,
     authToken: process.env.TWILIO_AUTH_TOKEN,
     from: process.env.TWILIO_FROM,
-  },
-  push: {
-    fcmServerKey: process.env.FCM_SERVER_KEY,
   },
 }));
