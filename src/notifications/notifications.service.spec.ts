@@ -43,7 +43,6 @@ describe('NotificationsService', () => {
         .fn()
         .mockResolvedValue(overrides.channelEnabled ?? true),
     };
-    const devices = { getActiveTokens: jest.fn().mockResolvedValue([]) };
     const logger = { logEvent: jest.fn(), warnEvent: jest.fn() };
 
     const service = new NotificationsService(
@@ -52,7 +51,6 @@ describe('NotificationsService', () => {
       dispatcher as any,
       recipients as any,
       preferences as any,
-      devices as any,
       logger as any,
     );
     return { service, notifications, dispatcher, deliveries, saved };

@@ -45,7 +45,7 @@ describe('NotificationCatalog', () => {
     expect(built).toBeNull();
   });
 
-  it('mapea user.role_changed avisando al usuario por email, realtime y push', () => {
+  it('mapea user.role_changed avisando al usuario por email, whatsapp y realtime', () => {
     const built = NotificationCatalog[ConsumedEvents.USER_ROLE_CHANGED]({
       userId: 'u3',
       roleId: 'r1',
@@ -56,8 +56,8 @@ describe('NotificationCatalog', () => {
     expect(built!.userId).toBe('u3');
     expect(built!.channels).toEqual([
       ChannelType.EMAIL,
+      ChannelType.WHATSAPP,
       ChannelType.REALTIME,
-      ChannelType.PUSH,
     ]);
     expect(built!.title).toContain('rol');
   });
