@@ -21,7 +21,7 @@ const SERVICE_MAP: Record<string, string> = {
 };
 
 const WAKE_TRIGGER_TIMEOUT_MS = 5_000;   // solo dispara el cold start, no espera respuesta
-const COLD_START_WAIT_MS = 45_000;        // pausa fija mientras Render arranca los servicios
+const COLD_START_WAIT_MS = 90_000;        // pausa fija mientras Render arranca los servicios
 const HEALTH_CHECK_TIMEOUT_MS = 15_000;  // timeout final para verificar que están UP
 
 const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
