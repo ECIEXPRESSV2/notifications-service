@@ -3,7 +3,6 @@ import { DataSourceOptions } from 'typeorm';
 import { join } from 'path';
 import { Recipient } from '../recipients/entities/recipient.entity';
 import { NotificationStore } from '../recipients/entities/notification-store.entity';
-import { DeviceToken } from '../devices/entities/device-token.entity';
 import { NotificationPreference } from '../preferences/entities/notification-preference.entity';
 import { Notification } from '../notifications/entities/notification.entity';
 import { NotificationDelivery } from '../notifications/entities/notification-delivery.entity';
@@ -24,7 +23,6 @@ export const databaseConfig = registerAs(
     entities: [
       Recipient,
       NotificationStore,
-      DeviceToken,
       NotificationPreference,
       Notification,
       NotificationDelivery,

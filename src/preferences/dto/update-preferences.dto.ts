@@ -17,11 +17,6 @@ export class UpdatePreferencesDto {
   @IsBoolean()
   smsEnabled?: boolean;
 
-  @ApiPropertyOptional({ description: 'Recibir notificaciones push.' })
-  @IsOptional()
-  @IsBoolean()
-  pushEnabled?: boolean;
-
   @ApiPropertyOptional({
     description: 'Recibir notificaciones en tiempo real dentro de la app.',
   })

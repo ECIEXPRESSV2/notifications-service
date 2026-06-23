@@ -11,7 +11,6 @@ export enum ChannelType {
   EMAIL = 'EMAIL',
   WHATSAPP = 'WHATSAPP',
   SMS = 'SMS',
-  PUSH = 'PUSH',
   REALTIME = 'REALTIME',
 }
 

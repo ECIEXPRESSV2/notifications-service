@@ -38,15 +38,6 @@ export class SendNotificationDto {
   @IsString()
   phone?: string;
 
-  @ApiPropertyOptional({
-    description: 'Tokens de dispositivo explícitos para push.',
-    type: [String],
-  })
-  @IsOptional()
-  @IsArray()
-  @IsString({ each: true })
-  deviceTokens?: string[];
-
   @ApiProperty({
     description: 'Canales por los que enviar.',
     enum: ChannelType,

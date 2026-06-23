@@ -10,8 +10,6 @@ import {
 export interface ChannelMessage {
   /** Destino directo para EMAIL/SMS/WHATSAPP (correo o teléfono E.164). */
   destination?: string | null;
-  /** Tokens de dispositivo para PUSH. */
-  deviceTokens?: string[];
   /** Id de usuario para emitir por el canal REALTIME (sala = userId). */
   userId?: string | null;
   /** Routing key del evento origen — resuelve la plantilla en templates/{service}/{event}.html */
@@ -23,6 +21,13 @@ export interface ChannelMessage {
   title: string;
   body: string;
   data?: Record<string, unknown> | null;
+  /**
+   * URL pública de una imagen a adjuntar (WhatsApp la descarga directamente).
+   * TODO(blob-storage): cuando las imágenes se suban a Azure Blob Storage, pasar aquí
+   * la URL del blob público. Pendiente definir: nombre del contenedor y connection string.
+   * Alternativa si el contenedor es privado: generar una SAS URL con expiración corta.
+   */
+  imageUrl?: string | null;
 }
 
 /** Resultado del envío por un canal. */

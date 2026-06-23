@@ -30,9 +30,6 @@ export class NotificationPreference {
   @Column({ name: 'sms_enabled', default: true })
   smsEnabled: boolean;
 
-  @Column({ name: 'push_enabled', default: true })
-  pushEnabled: boolean;
-
   @Column({ name: 'realtime_enabled', default: true })
   realtimeEnabled: boolean;
 
