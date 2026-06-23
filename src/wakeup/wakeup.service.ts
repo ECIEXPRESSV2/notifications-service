@@ -22,7 +22,7 @@ const SERVICE_MAP: Record<string, string> = {
 
 const WAKE_TRIGGER_TIMEOUT_MS = 5_000;   // solo dispara el cold start, no espera respuesta
 const COLD_START_WAIT_MS = 90_000;        // pausa fija mientras Render arranca los servicios
-const HEALTH_CHECK_TIMEOUT_MS = 15_000;  // timeout final para verificar que están UP
+const HEALTH_CHECK_TIMEOUT_MS = 20_000;  // timeout final para verificar que están UP
 
 const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
 
@@ -40,12 +40,14 @@ export class WakeupService {
       return;
     }
 
-    // Fase 1: disparar una petición corta a cada servicio para activar el cold start
+    // Fase 1: disparar una petición corta a cada servicio para activar el cold start.
+    // Se intenta /health y / para cubrir servicios que no exponen /health.
     this.logger.log(`[Fase 1] Disparando señales de wakeup a ${services.length} servicio(s)...`);
     await Promise.allSettled(
-      services.map((s) =>
+      services.flatMap((s) => [
         axios.get(`${s.url}/health`, { timeout: WAKE_TRIGGER_TIMEOUT_MS }).catch(() => {}),
-      ),
+        axios.get(`${s.url}/`, { timeout: WAKE_TRIGGER_TIMEOUT_MS }).catch(() => {}),
+      ]),
     );
 
     // Fase 2: esperar a que Render levante los servicios
@@ -72,17 +74,26 @@ export class WakeupService {
 
   private async checkService(service: { name: string; url: string }): Promise<ServiceCheck> {
     const start = Date.now();
-    try {
-      await axios.get(`${service.url}/health`, { timeout: HEALTH_CHECK_TIMEOUT_MS });
-      this.logger.log(`[${service.name}] UP (${Date.now() - start}ms)`);
-      return { ...service, status: 'UP', responseTimeMs: Date.now() - start };
-    } catch (err) {
-      const reason = axios.isAxiosError(err)
-        ? `${err.code ?? err.response?.status ?? 'error'}`
-        : (err as Error).message;
-      this.logger.warn(`[${service.name}] DOWN (${reason})`);
-      return { ...service, status: 'DOWN', responseTimeMs: Date.now() - start };
+    // Intenta /health primero; si no existe (404/timeout) cae a la raíz /.
+    // Necesario porque no todos los microservicios exponen /health.
+    for (const path of ['/health', '/']) {
+      try {
+        await axios.get(`${service.url}${path}`, { timeout: HEALTH_CHECK_TIMEOUT_MS });
+        this.logger.log(`[${service.name}] UP via ${path} (${Date.now() - start}ms)`);
+        return { ...service, status: 'UP', responseTimeMs: Date.now() - start };
+      } catch (err) {
+        if (!axios.isAxiosError(err)) {
+          this.logger.warn(`[${service.name}] DOWN — ${(err as Error).message}`);
+          return { ...service, status: 'DOWN', responseTimeMs: Date.now() - start };
+        }
+        // 404 en /health → probar / en siguiente iteración; cualquier otro error → DOWN
+        if (path === '/health' && err.response?.status === 404) continue;
+        const reason = `${err.code ?? err.response?.status ?? 'error'}`;
+        this.logger.warn(`[${service.name}] DOWN via ${path} (${reason})`);
+        return { ...service, status: 'DOWN', responseTimeMs: Date.now() - start };
+      }
     }
+    return { ...service, status: 'DOWN', responseTimeMs: Date.now() - start };
   }
 
   private async sendReport(results: ServiceCheck[]): Promise<void> {
