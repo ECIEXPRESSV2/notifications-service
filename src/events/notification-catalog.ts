@@ -56,14 +56,18 @@ export interface BuiltNotification {
 
 type Builder = (payload: any) => BuiltNotification | null;
 
-const { EMAIL, WHATSAPP, SMS, PUSH, REALTIME } = ChannelType;
+const { EMAIL, WHATSAPP, SMS, REALTIME } = ChannelType;
 
 /**
  * Catálogo de notificaciones: por cada routing key define cómo construir la
- * notificación (destinatario, texto y canales). Las decisiones de canal siguen la
- * arquitectura de mensajería: bienvenidas por email; movimientos de orden/pago/entrega
- * por email + in-app + push; el QR de entrega también por WhatsApp; el chat por push
- * en tiempo real; las alertas al vendedor por email + in-app.
+ * notificación (destinatario, texto y canales). Criterio de canales:
+ *
+ *  - Bienvenidas/seguridad: EMAIL + REALTIME
+ *  - Transacciones críticas (orden, pago, entrega): EMAIL + WHATSAPP + REALTIME
+ *  - Cambios de estado de orden: WHATSAPP + REALTIME (urgentes pero no requieren email)
+ *  - QR de entrega: EMAIL + WHATSAPP (el usuario necesita el código en el móvil)
+ *  - Chat: solo REALTIME (es comunicación interna de la app)
+ *  - Alertas al vendedor: EMAIL + WHATSAPP + REALTIME
  *
  * Agregar una notificación nueva en el futuro es añadir una entrada aquí; no hay que
  * tocar el consumidor ni el orquestador.
@@ -82,7 +86,7 @@ export const NotificationCatalog: Record<string, Builder> = {
   }),
 
   [ConsumedEvents.STORE_CREATED]: (p: StoreCreatedPayload) => {
-    if (!p.ownerId) return null; // sin dueño no hay a quién dar la bienvenida
+    if (!p.ownerId) return null;
     return {
       audience: 'user',
       userId: p.ownerId,
@@ -96,8 +100,6 @@ export const NotificationCatalog: Record<string, Builder> = {
   },
 
   [ConsumedEvents.USER_PROFILE_UPDATED]: (p: UserProfileUpdatedPayload) => ({
-    // Aviso de seguridad: confirmamos al titular que sus datos cambiaron, sin saturar
-    // con push (no es una acción que requiera atención inmediata).
     audience: 'user',
     userId: p.userId,
     type: 'user.profile_updated',
@@ -118,7 +120,6 @@ export const NotificationCatalog: Record<string, Builder> = {
       body: suspended
         ? 'Tu cuenta de ECIExpress fue suspendida temporalmente. Si crees que es un error, comunícate con soporte.'
         : 'Tu cuenta de ECIExpress fue desactivada. Si quieres reactivarla, comunícate con soporte.',
-      // Email sí o sí (queda registro aunque ya no entre a la app); realtime por si está conectado.
       channels: [EMAIL, REALTIME],
       data: { userId: p.userId, reason: p.reason },
       dedupSeed: `${p.userId}:deactivated:${p.reason ?? ''}`,
@@ -136,7 +137,7 @@ export const NotificationCatalog: Record<string, Builder> = {
       body: assigned
         ? `Ahora tienes el rol "${roleLabel}" en ECIExpress. Revisa las nuevas opciones disponibles en tu cuenta.`
         : `Se retiró el rol "${roleLabel}" de tu cuenta de ECIExpress.`,
-      channels: [EMAIL, REALTIME, PUSH],
+      channels: [EMAIL, WHATSAPP, REALTIME],
       data: { userId: p.userId, roleId: p.roleId, action: p.action },
       dedupSeed: `${p.userId}:role:${p.roleId ?? roleLabel}:${p.action ?? ''}`,
     };
@@ -150,7 +151,7 @@ export const NotificationCatalog: Record<string, Builder> = {
       type: 'store.status_changed',
       title: 'El estado de tu tienda cambió',
       body: `El estado de tu tienda cambió a: ${status ?? 'actualizado'}${p.reason ? ` (${p.reason})` : ''}.`,
-      channels: [EMAIL, REALTIME],
+      channels: [EMAIL, WHATSAPP, REALTIME],
       data: { storeId: p.storeId, status, reason: p.reason },
       dedupSeed: `${p.storeId}:status:${status ?? ''}`,
     };
@@ -173,7 +174,7 @@ export const NotificationCatalog: Record<string, Builder> = {
   }),
 
   [ConsumedEvents.STORE_STAFF_CHANGED]: (p: StoreStaffChangedPayload) => {
-    if (!p.userId) return null; // sin vendedor afectado no hay a quién avisar
+    if (!p.userId) return null;
     const assigned = p.action !== 'removed';
     return {
       audience: 'user',
@@ -183,7 +184,7 @@ export const NotificationCatalog: Record<string, Builder> = {
       body: assigned
         ? 'Fuiste asignado como vendedor de un punto de venta en ECIExpress. Ya puedes gestionar sus pedidos.'
         : 'Fuiste retirado como vendedor de un punto de venta en ECIExpress.',
-      channels: [EMAIL, REALTIME, PUSH],
+      channels: [EMAIL, WHATSAPP, REALTIME],
       data: { storeId: p.storeId, action: p.action },
       dedupSeed: `${p.storeId}:staff:${p.userId}:${p.action ?? ''}`,
     };
@@ -196,7 +197,7 @@ export const NotificationCatalog: Record<string, Builder> = {
     type: 'order.created',
     title: 'Pedido creado',
     body: `Tu pedido ${p.orderId} fue creado${p.totalAmount ? ` por ${formatCop(p.totalAmount)}` : ''} y está pendiente de pago.`,
-    channels: [EMAIL, REALTIME, PUSH],
+    channels: [EMAIL, WHATSAPP, REALTIME],
     data: { orderId: p.orderId },
     dedupSeed: p.orderId,
   }),
@@ -207,7 +208,7 @@ export const NotificationCatalog: Record<string, Builder> = {
     type: 'order.confirmed',
     title: 'Pedido confirmado',
     body: `Tu pedido ${p.orderId} fue pagado y está siendo preparado para el despacho.`,
-    channels: [EMAIL, WHATSAPP, REALTIME, PUSH],
+    channels: [EMAIL, WHATSAPP, REALTIME],
     data: { orderId: p.orderId },
     dedupSeed: p.orderId,
   }),
@@ -218,7 +219,7 @@ export const NotificationCatalog: Record<string, Builder> = {
     type: 'order.cancelled',
     title: 'Pedido cancelado',
     body: `Tu pedido ${p.orderId} fue cancelado. Si pagaste con tu billetera, el saldo será reintegrado.`,
-    channels: [EMAIL, REALTIME, PUSH],
+    channels: [EMAIL, WHATSAPP, REALTIME],
     data: { orderId: p.orderId },
     dedupSeed: p.orderId,
   }),
@@ -229,7 +230,7 @@ export const NotificationCatalog: Record<string, Builder> = {
     type: 'order.status_changed',
     title: 'Actualización de tu pedido',
     body: `El estado de tu pedido ${p.orderId} cambió a: ${p.status}.`,
-    channels: [REALTIME, PUSH],
+    channels: [WHATSAPP, REALTIME],
     data: { orderId: p.orderId, status: p.status },
     dedupSeed: `${p.orderId}:${p.status}`,
   }),
@@ -242,9 +243,8 @@ export const NotificationCatalog: Record<string, Builder> = {
     body: p.preview
       ? `Tienes un nuevo mensaje: "${p.preview}"`
       : 'Tienes un nuevo mensaje en tu chat de ECIExpress.',
-    // El canal realtime se auto-omite si el usuario está conectado/desconectado; el
-    // push cubre el caso de receptor offline.
-    channels: [PUSH, REALTIME],
+    // El chat es comunicación interna de la app; solo notificación en tiempo real.
+    channels: [REALTIME],
     data: { conversationId: p.conversationId, messageId: p.messageId },
     dedupSeed: p.messageId ?? `${p.conversationId}:${Date.now()}`,
   }),
@@ -267,7 +267,7 @@ export const NotificationCatalog: Record<string, Builder> = {
     type: 'delivery.confirmed',
     title: 'Entrega confirmada',
     body: `Confirmamos la entrega de tu pedido ${p.orderId}. ¡Gracias por comprar en ECIExpress!`,
-    channels: [EMAIL, REALTIME, PUSH],
+    channels: [EMAIL, WHATSAPP, REALTIME],
     data: { orderId: p.orderId },
     dedupSeed: p.orderId,
   }),
@@ -278,7 +278,7 @@ export const NotificationCatalog: Record<string, Builder> = {
     type: 'delivery.qr_expired',
     title: 'Tu código de entrega venció',
     body: `El código QR del pedido ${p.orderId} venció sin usarse. Genera uno nuevo desde la app para completar la entrega.`,
-    channels: [EMAIL, REALTIME, PUSH],
+    channels: [EMAIL, WHATSAPP, REALTIME],
     data: { orderId: p.orderId },
     dedupSeed: p.orderId,
   }),
@@ -289,7 +289,7 @@ export const NotificationCatalog: Record<string, Builder> = {
     type: 'delivery.failed',
     title: 'No pudimos completar tu entrega',
     body: `Hubo un problema entregando tu pedido ${p.orderId}${p.reason ? `: ${p.reason}` : ''}. Te contactaremos para reprogramar.`,
-    channels: [EMAIL, REALTIME, PUSH],
+    channels: [EMAIL, WHATSAPP, REALTIME],
     data: { orderId: p.orderId, reason: p.reason },
     dedupSeed: p.orderId,
   }),
@@ -303,15 +303,14 @@ export const NotificationCatalog: Record<string, Builder> = {
       type: 'wallet.topup_approved',
       title: 'Recarga confirmada',
       body: `Tu billetera fue recargada por ${formatCop(p.amount)}.`,
-      // La recarga notifica por TODOS los canales (prueba end-to-end de la mensajería).
-      channels: [EMAIL, WHATSAPP, SMS, PUSH, REALTIME],
+      channels: [EMAIL, WHATSAPP, SMS, REALTIME],
       data: { topupId: p.topupId, amount: p.amount },
       dedupSeed: p.topupId ?? p.userId,
     };
   },
 
   [ConsumedEvents.WALLET_TOPUP_FAILED]: (p: WalletTopupFailedPayload) => {
-    if (!p.userId) return null; // sin dueño no hay a quién avisar
+    if (!p.userId) return null;
     return {
       audience: 'user',
       userId: p.userId,
@@ -330,28 +329,28 @@ export const NotificationCatalog: Record<string, Builder> = {
   },
 
   [ConsumedEvents.PAYMENT_PROCESSED]: (p: PaymentProcessedPayload) => {
-    if (!p.userId) return null; // TODO: Financial debe incluir userId/buyerId
+    if (!p.userId) return null;
     return {
       audience: 'user',
       userId: p.userId,
       type: 'payment.processed',
       title: 'Pago exitoso',
       body: `Se procesó el pago${p.totalCharged ? ` de ${formatCop(p.totalCharged)}` : ''} de tu pedido ${p.orderId}.`,
-      channels: [REALTIME, PUSH],
+      channels: [WHATSAPP, REALTIME],
       data: { orderId: p.orderId, totalCharged: p.totalCharged },
       dedupSeed: p.orderId,
     };
   },
 
   [ConsumedEvents.PAYMENT_FAILED]: (p: PaymentFailedPayload) => {
-    if (!p.userId) return null; // TODO: Financial debe incluir userId/buyerId
+    if (!p.userId) return null;
     return {
       audience: 'user',
       userId: p.userId,
       type: 'payment.failed',
       title: 'No pudimos procesar tu pago',
       body: `El pago de tu pedido ${p.orderId} no pudo completarse${p.reason === 'INSUFFICIENT_FUNDS' ? ' por saldo insuficiente en tu billetera' : ''}.`,
-      channels: [EMAIL, REALTIME, PUSH],
+      channels: [EMAIL, WHATSAPP, REALTIME],
       data: { orderId: p.orderId, reason: p.reason },
       dedupSeed: `${p.orderId}:failed`,
     };
@@ -363,20 +362,20 @@ export const NotificationCatalog: Record<string, Builder> = {
     type: 'payout.released',
     title: 'Pago liberado',
     body: `Se liberó el pago${p.storePayoutAmount ? ` de ${formatCop(p.storePayoutAmount)}` : ''} por el pedido ${p.orderId} tras confirmarse la entrega.`,
-    channels: [EMAIL, REALTIME],
+    channels: [EMAIL, WHATSAPP, REALTIME],
     data: { orderId: p.orderId, storePayoutAmount: p.storePayoutAmount },
     dedupSeed: `${p.orderId}:released`,
   }),
 
   [ConsumedEvents.REFUND_ISSUED]: (p: RefundIssuedPayload) => {
-    if (!p.userId) return null; // TODO: Financial debe incluir userId/buyerId
+    if (!p.userId) return null;
     return {
       audience: 'user',
       userId: p.userId,
       type: 'refund.issued',
       title: 'Reembolso procesado',
       body: `Reintegramos${p.refundedAmount ? ` ${formatCop(p.refundedAmount)}` : ' el valor'} de tu pedido ${p.orderId} a tu billetera.`,
-      channels: [EMAIL, REALTIME, PUSH],
+      channels: [EMAIL, WHATSAPP, REALTIME],
       data: { orderId: p.orderId, refundedAmount: p.refundedAmount },
       dedupSeed: `${p.orderId}:refund`,
     };
@@ -389,7 +388,7 @@ export const NotificationCatalog: Record<string, Builder> = {
     type: 'inventory.low_stock',
     title: 'Stock bajo',
     body: `El producto "${p.productName ?? p.productId}" está por agotarse${p.remainingStock !== undefined ? ` (quedan ${p.remainingStock})` : ''}. Reabastécelo para no perder ventas.`,
-    channels: [EMAIL, REALTIME, PUSH],
+    channels: [EMAIL, WHATSAPP, REALTIME],
     data: { productId: p.productId, remainingStock: p.remainingStock },
     dedupSeed: `${p.productId}:low_stock`,
   }),

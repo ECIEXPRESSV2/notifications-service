@@ -13,7 +13,6 @@ import { MessagingModule } from './events/messaging.module';
 import { EventsModule } from './events/events.module';
 import { ChannelsModule } from './channels/channels.module';
 import { RecipientsModule } from './recipients/recipients.module';
-import { DevicesModule } from './devices/devices.module';
 import { PreferencesModule } from './preferences/preferences.module';
 import { NotificationsModule } from './notifications/notifications.module';
 import { WakeupModule } from './wakeup/wakeup.module';
@@ -35,7 +34,6 @@ import { WakeupModule } from './wakeup/wakeup.module';
     MessagingModule,
     ChannelsModule,
     RecipientsModule,
-    DevicesModule,
     PreferencesModule,
     NotificationsModule,
     EventsModule,

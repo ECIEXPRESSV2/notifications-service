@@ -80,7 +80,6 @@ export class NotificationsController {
       recipientUserId: dto.recipientUserId ?? null,
       emailOverride: dto.email,
       phoneOverride: dto.phone,
-      deviceTokensOverride: dto.deviceTokens,
       channels: dto.channels,
       type: dto.type ?? 'custom',
       title: dto.title,

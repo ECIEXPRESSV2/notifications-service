@@ -48,8 +48,6 @@ export class PreferencesService {
         return pref.whatsappEnabled;
       case ChannelType.SMS:
         return pref.smsEnabled;
-      case ChannelType.PUSH:
-        return pref.pushEnabled;
       case ChannelType.REALTIME:
         return pref.realtimeEnabled;
       default:
