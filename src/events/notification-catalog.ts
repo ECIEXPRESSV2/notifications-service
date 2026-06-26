@@ -382,16 +382,27 @@ export const NotificationCatalog: Record<string, Builder> = {
   },
 
   // ----------------------------------------------------------------- Product
-  [ConsumedEvents.LOW_STOCK_ALERT]: (p: LowStockAlertPayload) => ({
-    audience: 'store',
-    storeId: p.storeId,
-    type: 'inventory.low_stock',
-    title: 'Stock bajo',
-    body: `El producto "${p.productName ?? p.productId}" está por agotarse${p.remainingStock !== undefined ? ` (quedan ${p.remainingStock})` : ''}. Reabastécelo para no perder ventas.`,
-    channels: [EMAIL, WHATSAPP, REALTIME],
-    data: { productId: p.productId, remainingStock: p.remainingStock },
-    dedupSeed: `${p.productId}:low_stock`,
-  }),
+  [ConsumedEvents.LOW_STOCK_ALERT]: (p: LowStockAlertPayload) => {
+    // Disponible real = stock total menos lo reservado en carritos/órdenes sin confirmar.
+    const available = p.stock - p.reservedStock;
+    return {
+      audience: 'store',
+      storeId: p.storeId,
+      type: 'inventory.low_stock',
+      title: 'Stock bajo',
+      body: `El producto "${p.name ?? p.productId}" está por agotarse (quedan ${available}, mínimo ${p.minStock}). Reabastécelo para no perder ventas.`,
+      channels: [EMAIL, WHATSAPP, REALTIME],
+      data: {
+        productId: p.productId,
+        name: p.name,
+        available,
+        stock: p.stock,
+        reservedStock: p.reservedStock,
+        minStock: p.minStock,
+      },
+      dedupSeed: `${p.productId}:low_stock`,
+    };
+  },
 };
 
 /** Routing keys que tienen una notificación asociada. */
