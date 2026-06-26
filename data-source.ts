@@ -2,7 +2,6 @@ import { DataSource } from 'typeorm';
 import * as dotenv from 'dotenv';
 import { Recipient } from './src/recipients/entities/recipient.entity';
 import { NotificationStore } from './src/recipients/entities/notification-store.entity';
-import { DeviceToken } from './src/devices/entities/device-token.entity';
 import { NotificationPreference } from './src/preferences/entities/notification-preference.entity';
 import { Notification } from './src/notifications/entities/notification.entity';
 import { NotificationDelivery } from './src/notifications/entities/notification-delivery.entity';
@@ -20,7 +19,6 @@ const AppDataSource = new DataSource({
   entities: [
     Recipient,
     NotificationStore,
-    DeviceToken,
     NotificationPreference,
     Notification,
     NotificationDelivery,
