@@ -18,6 +18,7 @@ import { Server, Socket } from 'socket.io';
  * El evento emitido es `notification` con el cuerpo de la notificación.
  */
 @WebSocketGateway({
+  path: '/notifications/socket.io',
   cors: { origin: true, credentials: true },
 })
 export class RealtimeGateway
