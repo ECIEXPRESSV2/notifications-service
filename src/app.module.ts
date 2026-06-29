@@ -2,7 +2,7 @@ import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { databaseConfig } from './config/database.config';
-import { rabbitmqConfig } from './config/rabbitmq.config';
+import { serviceBusConfig } from './config/service-bus.config';
 import { channelsConfig } from './config/channels.config';
 import { appConfig } from './config/app.config';
 import { AppController } from './app.controller';
@@ -22,7 +22,7 @@ import { WakeupModule } from './wakeup/wakeup.module';
     LoggerModule,
     ConfigModule.forRoot({
       isGlobal: true,
-      load: [databaseConfig, rabbitmqConfig, channelsConfig, appConfig],
+      load: [databaseConfig, serviceBusConfig, channelsConfig, appConfig],
     }),
     TypeOrmModule.forRootAsync({
       inject: [ConfigService],
