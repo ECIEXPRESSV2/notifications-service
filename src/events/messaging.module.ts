@@ -32,11 +32,11 @@ export const SERVICE_BUS_CLIENT = Symbol('SERVICE_BUS_CLIENT');
       provide: SERVICE_BUS_CLIENT,
       inject: [ConfigService],
       useFactory: (config: ConfigService): ServiceBusClient => {
+        const connStr = process.env.SERVICE_BUS_CONNECTION_STRING;
+        if (connStr) return new ServiceBusClient(connStr);
         const fqns = config.getOrThrow<string>(
           'serviceBus.fullyQualifiedNamespace',
         );
-        // DefaultAzureCredential toma la Managed Identity de usuario indicada por
-        // AZURE_CLIENT_ID (inyectada por Terraform). En local, cae a az login / env.
         return new ServiceBusClient(fqns, new DefaultAzureCredential());
       },
     },
